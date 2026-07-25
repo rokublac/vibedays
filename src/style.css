@@ -1,0 +1,453 @@
+:root {
+  --grad-top: #1a1a3a;
+  --grad-bottom: #0a0a1a;
+  --fg: #f5f5f5; /* replaced per time-of-day by applyPalette; paired for WCAG AA */
+  --accent: #ffffff;
+
+  /* Secondary text. 75% is the floor the evening gradient can carry at 4.5:1 —
+     see the muted-tier test in palette.test.ts before lowering it. */
+  --fg-muted: color-mix(in srgb, var(--fg) 75%, transparent);
+
+  /* Adaptive hairline: a dark tint over light gradients, light over dark ones. */
+  --hairline: color-mix(in srgb, var(--fg) 22%, transparent);
+
+  /* All four seasonal accents are light, so the glyph sitting on one is always
+     dark ink — never --grad-bottom, which is near-white on the day palettes. */
+  --on-accent: #14141f;
+
+  --radius: 8px;
+  --pill: 999px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--fg);
+  transition: color 1.5s ease; /* matches the backdrop transition */
+  -webkit-font-smoothing: antialiased;
+}
+
+#backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg, var(--grad-top), var(--grad-bottom));
+  transition: background 1.5s ease;
+}
+
+/* Subtle particle wash; tuned per weather via [data-particles]. */
+#backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.15;
+  background-image: radial-gradient(var(--accent) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+#backdrop[data-particles='rain']::after { background-size: 3px 24px; opacity: 0.25; }
+#backdrop[data-particles='snow']::after { background-size: 22px 22px; opacity: 0.35; }
+#backdrop[data-particles='none']::after { opacity: 0; }
+
+/* Full-height stage: the stack is vertically centred and the gradient carries
+   the rest of the screen. dvh so mobile browser chrome doesn't clip it. */
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-width: 840px;
+  margin: 0 auto;
+  padding: clamp(2rem, 6vh, 4.5rem) clamp(1.25rem, 5vw, 3rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(1.75rem, 4vh, 2.75rem);
+}
+
+/* Transport sits under the controls; diagnostics drop to the bottom as fine print. */
+#controls { order: 1; }
+#player { order: 2; }
+#diagnostics { order: 3; }
+
+/* Content cross-fade, driven by fadeSwap(). Duration must match SWAP_MS. */
+.is-fading { opacity: 0 !important; }
+#readout,
+.track-link,
+.context-line { transition: opacity 0.24s ease; }
+
+/* ---- Readout: display-size mood over a quiet condition line ---- */
+
+#controls { display: flex; flex-direction: column; gap: 0.75rem; align-items: flex-start; }
+
+/* The overline and the settings button share a row, so the button sits level
+   with the eyebrow rather than floating at the top of the viewport. */
+.controls-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+
+#readout { margin: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+
+/* Overline above the hero: small, wide-tracked, uppercase. */
+.readout-conditions {
+  font-size: clamp(0.6875rem, 1.4vw, 0.8125rem);
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+/* The hero. Large text only owes 3:1, so the scale costs nothing in contrast. */
+.readout-mood {
+  font-size: clamp(2.75rem, 11vw, 6.5rem);
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 0.95;
+  text-wrap: balance;
+}
+
+button { cursor: pointer; font-family: inherit; }
+
+/* ---- Account ---- */
+
+/* Quiet outline action. 55% --fg is the lightest border that holds 3:1 against
+   every gradient — measured, same threshold the transport uses. */
+.btn-quiet,
+.account-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--pill);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--fg) 55%, transparent);
+  color: var(--fg-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.btn-quiet[hidden] { display: none; }
+/* Full strength on hover: --fg-muted drops to 3.83:1 on the evening gradient
+   once the hover tint sits behind it. */
+.btn-quiet:hover,
+.account-chip:hover {
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
+  color: var(--fg);
+  border-color: var(--fg);
+}
+.btn-quiet:focus-visible,
+.account-chip:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; }
+
+.account { position: relative; }
+.account[hidden] { display: none; }
+.account-chip { padding-left: 0.35rem; }
+
+.account-avatar {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--fg) 18%, transparent);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+}
+.account-avatar-img { width: 100%; height: 100%; object-fit: cover; }
+.account-avatar-img[hidden] { display: none; }
+
+.account-name { max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Fixed dark surface like the login card: independent of the palette, so the
+   menu's contrast never depends on which gradient is behind it. */
+.account-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 5;
+  min-width: 12rem;
+  padding: 0.5rem;
+  border-radius: 10px;
+  background: #14141f;
+  color: #f5f5f5;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  text-align: left;
+}
+.account-menu[hidden] { display: none; }
+.account-menu-name {
+  margin: 0;
+  padding: 0.35rem 0.6rem 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.account-menu-item {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+}
+.account-menu-item:hover { background: rgba(255, 255, 255, 0.09); }
+.account-menu-item:focus-visible { outline: 2px solid #f5f5f5; outline-offset: -2px; }
+
+/* ---- Transport ---- */
+
+#player { display: flex; flex-direction: column; gap: 0.75rem; align-items: flex-start; }
+
+/* "Playing from <playlist>" — sits above the bar and links to the source.
+   Kept outside .now-bar so it can be its own anchor without nesting links. */
+.context-line {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  max-width: 100%;
+  font-size: clamp(0.6875rem, 1.4vw, 0.8125rem);
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  text-decoration: none;
+}
+.context-line[hidden] { display: none; }
+.context-line:hover { color: var(--fg); }
+.context-line:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; border-radius: 4px; }
+.context-line[aria-disabled='true'] { cursor: default; }
+.context-line[aria-disabled='true']:hover { color: var(--fg-muted); }
+
+.context-label { font-weight: 600; }
+
+.context-name {
+  color: var(--fg);
+  /* Heavier and slightly tighter than the label: at this size the weight jump
+     is what separates the playlist name from the words in front of it. */
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 0.2s ease;
+}
+/* Only the linked state gets the pointer and the underline — when the SDK gives
+   us no url the line is aria-disabled and must not look clickable. */
+.context-line[href] { cursor: pointer; }
+.context-line[href]:hover .context-name,
+.context-line[href]:focus-visible .context-name {
+  text-decoration-color: currentColor;
+}
+
+/* One bar: track link on the left, transport on the right. */
+.now-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  transition: border-color 1.5s ease;
+  /* Matches the 80px artwork plus padding, so the bar doesn't jump in height
+     when the first track arrives and replaces the empty message. */
+  min-height: 104px;
+}
+/* The empty state keeps the frame — a lone play button with no context around
+   it reads as a broken layout rather than an idle player. */
+.track-empty {
+  flex: 1;
+  min-width: 0;
+  padding-left: 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--fg-muted);
+}
+.track-empty[hidden] { display: none; }
+
+.transport-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.transport {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--fg-muted);
+  font-size: 1.25rem;
+  line-height: 1;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+.transport:hover { color: var(--fg); transform: scale(1.06); }
+.transport:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+/* Play/pause: seasonal fill, ringed in --fg so the circle is always discernible
+   against the gradient (the accents alone fail 3:1 on the light palettes). */
+/* Scaled with the bar to sit in proportion to the 80px artwork. */
+.transport-main {
+  width: 3.5rem;
+  height: 3.5rem;
+  background: var(--accent);
+  border: 2px solid var(--fg);
+  color: var(--on-accent);
+  font-size: 1.6rem;
+  /* Matches the backdrop so the accent and gradient shift together. */
+  transition: background-color 1.5s ease, border-color 1.5s ease, transform 0.15s ease;
+}
+.transport-main:hover { color: var(--on-accent); transform: scale(1.06); }
+
+/* ---- Now-playing card: a reference/link-out, not a second player ---- */
+
+.track-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1;
+  padding: 0.25rem 0.75rem 0.25rem 0.25rem;
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+  /* Persistent fill so the clickable region reads as one block and the ↗
+     doesn't float in dead space. 10%/16% are the highest tints that keep
+     full-strength text at AA on the evening gradient — see palette.test.ts. */
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
+  transition: background 0.2s ease, opacity 0.24s ease;
+}
+.track-link[hidden] { display: none; }
+.track-link:hover { background: color-mix(in srgb, var(--fg) 16%, transparent); }
+.track-link:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.track-link[aria-disabled='true'] { cursor: default; }
+.track-link[aria-disabled='true']:hover { background: none; }
+
+.track-art {
+  width: 80px;
+  height: 80px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+}
+.track-art[hidden] { display: none; }
+
+.track-meta { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; flex: 1; }
+.track-name,
+.track-artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.track-name { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.015em; }
+/* Full strength, not --fg-muted: on the tinted surface the muted tier drops to
+   3.97:1 on the evening gradient. Size and weight carry the hierarchy instead. */
+.track-artist { font-size: 0.9375rem; font-weight: 500; }
+
+/* Muted is fine here: an icon is a graphical object at the 3:1 threshold, and
+   it measures 3.40:1 at the darkest hover tint. */
+.track-open { font-size: 1.125rem; color: var(--fg-muted); flex-shrink: 0; }
+.track-link:hover .track-open { color: var(--fg); }
+.track-link[aria-disabled='true'] .track-open { display: none; }
+
+/* ---- Diagnostics: fine print ---- */
+
+.diagnostics {
+  transition: border-color 1.5s ease;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.45rem 1.5rem;
+  font-size: 0.75rem;
+  margin: 0;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--hairline);
+}
+.diagnostics dt {
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.diagnostics dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ---- Overlay / login: fixed dark panel on a scrim, independent of the palette ---- */
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  padding: 1rem;
+}
+#overlay[hidden] { display: none; }
+
+.login-card {
+  background: #14141f;
+  color: #f5f5f5;
+  border-radius: 12px;
+  padding: 1.75rem;
+  /* Matches the player's content column (#app max-width minus its padding). */
+  width: min(744px, 100%);
+  max-height: 85vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+.login-card h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.login-card p { margin: 0; font-size: 0.875rem; line-height: 1.55; color: rgba(245, 245, 245, 0.75); }
+/* After the general p rule, or the shared colour would win. */
+.login-card .fineprint { font-size: 0.8125rem; color: rgba(245, 245, 245, 0.55); }
+.login-card .detected strong { color: var(--accent); font-weight: 700; }
+.login-card button {
+  align-self: flex-start;
+  padding: 0.65rem 1.35rem;
+  border: 0;
+  border-radius: var(--pill);
+  background: #f5f5f5;
+  color: #14141f;
+  font-size: 0.875rem;
+  font-weight: 700;
+  transition: transform 0.15s ease;
+}
+.login-card button:hover { transform: scale(1.04); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+  .transport:hover, .login-card button:hover { transform: none; }
+  /* Without a transition the fade class would just blank the content for the
+     swap delay, so keep it visible and let the change happen instantly. */
+  .is-fading { opacity: 1 !important; }
+}
