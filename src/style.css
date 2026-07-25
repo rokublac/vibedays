@@ -4,9 +4,10 @@
   --fg: #f5f5f5; /* replaced per time-of-day by applyPalette; paired for WCAG AA */
   --accent: #ffffff;
 
-  /* Secondary text. 75% is the floor the evening gradient can carry at 4.5:1 —
-     see the muted-tier test in palette.test.ts before lowering it. */
-  --fg-muted: color-mix(in srgb, var(--fg) 75%, transparent);
+  /* Secondary text. Raised from 75% to 85% to leave room for the backdrop's
+     light pools: at 75% the sunset gradient fell to 4.24:1 under them.
+     See the wash test in palette.test.ts before lowering it. */
+  --fg-muted: color-mix(in srgb, var(--fg) 85%, transparent);
 
   /* Adaptive hairline: a dark tint over light gradients, light over dark ones. */
   --hairline: color-mix(in srgb, var(--fg) 22%, transparent);
@@ -43,71 +44,44 @@ body {
   transition: background 1.5s ease;
 }
 
-/* Subtle particle wash; tuned per weather via [data-particles]. */
+/* Soft light pools rather than a repeating texture. Nothing tiles, so there is
+   no grid to notice; they just drift the gradient slightly lighter in a few
+   places. Peak alpha is kept near 6% because these lighten the background, and
+   the muted text tier has to survive sitting on top of one. */
 #backdrop::after {
   content: '';
   position: absolute;
   inset: 0;
-  opacity: 0.15;
-  background-image: radial-gradient(var(--accent) 1px, transparent 1px);
-  background-size: 40px 40px;
+  background-repeat: no-repeat;
+  background-image:
+    radial-gradient(58% 46% at 14% 18%,
+      color-mix(in srgb, var(--accent) 6%, transparent) 0%, transparent 70%),
+    radial-gradient(48% 40% at 88% 32%,
+      color-mix(in srgb, #ffffff 5%, transparent) 0%, transparent 72%),
+    radial-gradient(62% 52% at 74% 88%,
+      color-mix(in srgb, var(--accent) 6%, transparent) 0%, transparent 74%),
+    radial-gradient(44% 38% at 26% 78%,
+      color-mix(in srgb, #ffffff 4%, transparent) 0%, transparent 70%);
 }
-#backdrop[data-particles='rain']::after { background-size: 3px 24px; opacity: 0.25; }
-#backdrop[data-particles='snow']::after { background-size: 22px 22px; opacity: 0.35; }
+
+/* Weather keeps its own marks: streaks read as rain, dots as snow. */
+#backdrop[data-particles='rain']::after {
+  background-image: radial-gradient(var(--accent) 1px, transparent 1px);
+  background-repeat: repeat;
+  background-size: 3px 24px;
+  opacity: 0.25;
+}
+#backdrop[data-particles='snow']::after {
+  background-image: radial-gradient(var(--accent) 1px, transparent 1px);
+  background-repeat: repeat;
+  background-size: 22px 22px;
+  opacity: 0.35;
+}
 #backdrop[data-particles='none']::after { opacity: 0; }
 
-/* ---- Boot ---- */
-
-#boot {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  z-index: 20;
-  /* Its own soft black, not the palette variables: the loader runs before a
-     phase is resolved, and anything translucent let the app's diagnostics rule
-     show through as a line straight across the screen. */
-  background: linear-gradient(180deg, #15151d 0%, #08080c 100%);
-  /* Fades out rather than vanishing, so the hero does not snap into place. */
-  transition: opacity 0.4s ease;
-}
-#boot.is-done { opacity: 0; pointer-events: none; }
-
-/* Hidden until the loader is done, then the two cross-fade. pointer-events off
-   as well, so nothing invisible is clickable on the way in. */
-#boot:not(.is-done) ~ #app {
-  opacity: 0;
-  pointer-events: none;
-}
-#app { transition: opacity 0.4s ease; }
-
-.boot-text {
-  display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
-  margin: 0;
-  font-size: clamp(1.25rem, 4vw, 1.75rem);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--fg-muted);
-}
-
-/* Three dots fading in sequence. The rainbow already moves, so this stays
-   small and slow rather than competing with it. */
-.boot-dots { display: inline-flex; align-items: center; gap: 3px; }
-.boot-dots i {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: currentColor;
-  animation: hb-dot 1.4s ease-in-out infinite;
-}
-.boot-dots i:nth-child(2) { animation-delay: 0.18s; }
-.boot-dots i:nth-child(3) { animation-delay: 0.36s; }
-@keyframes hb-dot {
-  0%, 100% { opacity: 0.2; }
-  50% { opacity: 1; }
-}
+/* Boot screen styles are inlined in index.html so the loader is correct on the
+   very first paint. In dev, Vite injects this stylesheet via JS, which is a
+   frame or two after the HTML renders: long enough to flash unstyled text. */
 
 /* Full-height stage: the stack is vertically centred and the gradient carries
    the rest of the screen. dvh so mobile browser chrome doesn't clip it. */
@@ -121,6 +95,21 @@ body {
   flex-direction: column;
   justify-content: center;
   gap: clamp(1.75rem, 4vh, 2.75rem);
+}
+
+/* Pinned to the viewport corner, clear of the content column. Sits below the
+   login overlay and the modal so it never floats over them. */
+#brand {
+  position: fixed;
+  top: clamp(1rem, 2.5vh, 1.75rem);
+  right: clamp(1.25rem, 3vw, 2rem);
+  z-index: 5;
+  font-size: 1.25rem;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  pointer-events: none;
 }
 
 /* Transport sits under the controls; diagnostics drop to the bottom as fine print. */
@@ -351,7 +340,14 @@ button { cursor: pointer; font-family: inherit; }
 
 #player { display: flex; flex-direction: column; gap: 0.75rem; align-items: flex-start; }
 
-.context-row { display: flex; align-items: baseline; gap: 0.75rem; max-width: 100%; }
+.context-row {
+  display: flex;
+  align-items: baseline;
+  /* Wraps rather than pushing the button off the edge on a long playlist name. */
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  max-width: 100%;
+}
 .context-row[hidden] { display: none; }
 
 /* Quiet by default so it doesn't compete with the playlist name; it is a
@@ -585,9 +581,10 @@ button { cursor: pointer; font-family: inherit; }
   display: flex;
   align-items: stretch;
   gap: clamp(1rem, 3vw, 2rem);
-  padding-top: 1.75rem;
-  border-top: 1px solid var(--hairline);
-  transition: border-color 1.5s ease;
+  /* No rule here: the player's own border already separates the two, and a
+     second line so close to it just doubles up. Spacing comes from the stage's
+     own gap; the extra padding was stacking on top of it. */
+  padding-top: 0;
 }
 
 /* The column has a definite width and stretches to the row's height. Deriving
@@ -616,9 +613,40 @@ button { cursor: pointer; font-family: inherit; }
   margin: 0;
 }
 
-/* No room for it beside the rows on a phone. */
-@media (max-width: 30rem) {
-  .globe { display: none; }
+/* ---- Narrow layouts ---- */
+
+/* Below this the content column reaches the viewport edge, so the header would
+   run under the fixed wordmark. Push the stage down to clear it. */
+@media (max-width: 64rem) {
+  #app { padding-top: clamp(4rem, 8vh, 5.5rem); }
+}
+
+@media (max-width: 40rem) {
+  /* Transport moves under the track rather than squeezing it. */
+  .now-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  .transport-row {
+    margin-left: 0;
+    justify-content: center;
+  }
+
+  /* Rows first, globe beneath them: side by side there is no width left for
+     the values, and the globe would shrink to a speck to make room. */
+  #diagnostics {
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+  }
+  .diagnostics { order: 1; width: 100%; }
+  .globe {
+    order: 2;
+    align-self: center;
+    width: clamp(3.5rem, 20vw, 5rem);
+    height: clamp(3.5rem, 20vw, 5rem);
+  }
 }
 /* Shown when geolocation is unavailable, both under the hero and on the login
    card. A left rule rather than a filled box, so it reads on any gradient. */
@@ -724,6 +752,7 @@ button { cursor: pointer; font-family: inherit; }
 #overlay {
   position: fixed;
   inset: 0;
+  z-index: 10;
   display: grid;
   place-items: center;
   background: rgba(0, 0, 0, 0.7);
@@ -816,6 +845,5 @@ button { cursor: pointer; font-family: inherit; }
   .now-bar.is-busy .transport-main,
   .now-bar.is-busy .track-empty,
   .context-status { animation: none; }
-  .boot-dots i { animation: none; opacity: 0.6; }
   .rainbow { animation: none; }
 }

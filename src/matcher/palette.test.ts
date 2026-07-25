@@ -34,7 +34,10 @@ function composite(fg: string, alpha: number, bg: string): string {
 
 // Mirrors --fg-muted in style.css. Secondary text is still body text, so it
 // must clear 4.5:1 too — dimming it is what broke the evening gradient before.
-const MUTED_ALPHA = 0.75
+const MUTED_ALPHA = 0.85
+
+/** Peak alpha of the backdrop's light pools; they lighten what sits under them. */
+const WASH_ALPHA = 0.1
 
 describe('particlesFor', () => {
   it('rain/storm → rain', () => {
@@ -134,6 +137,18 @@ describe('palette contrast (WCAG 2.1 AA, 4.5:1 for body text)', () => {
     for (const time of TIMES) {
       const { fg, gradient } = derivePalette(time, 'clear', 'spring')
       expect(contrast(fg, gradient[1])).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it.each(TIMES)('%s text survives the backdrop light pools', (time) => {
+    // The decorative pools lighten the gradient. Text sitting on one must still
+    // clear AA, including the muted tier, which is what forced 85% over 75%.
+    const { fg, gradient } = derivePalette(time, 'clear', 'spring')
+    const [top, bottom] = gradient
+    for (const bg of [top, midpoint(top, bottom), bottom]) {
+      const washed = composite('#ffffff', WASH_ALPHA, bg)
+      expect(contrast(fg, washed)).toBeGreaterThanOrEqual(4.5)
+      expect(contrast(composite(fg, MUTED_ALPHA, washed), washed)).toBeGreaterThanOrEqual(4.5)
     }
   })
 

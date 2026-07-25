@@ -32,6 +32,81 @@
     <meta name="twitter:title" content="vibedays - music for your vibe" />
     <meta name="twitter:description" content="Music that fits your day. It reads the sun and the weather where you are, then finds a playlist to match." />
     <meta name="twitter:image" content="https://vibedays.pages.dev/og-image.png" />
+
+    <!-- Inlined deliberately: this is the only CSS that has to be right on the
+         first paint. The main stylesheet is injected by JS in dev, a frame or
+         two after the HTML renders, which flashed unstyled text in the corner.
+         Kept self-contained; nothing here reads a custom property. -->
+    <style>
+      body { margin: 0; background: #08080c; }
+
+      #boot {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        z-index: 20;
+        background: linear-gradient(180deg, #15151d 0%, #08080c 100%);
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        /* Fades out rather than vanishing, so the hero does not snap in. */
+        transition: opacity 0.4s ease;
+      }
+      #boot.is-done { opacity: 0; pointer-events: none; }
+
+      /* Hidden until the loader is done, then the two cross-fade. */
+      #boot:not(.is-done) ~ #app,
+      #boot:not(.is-done) ~ #brand { opacity: 0; pointer-events: none; }
+      #app, #brand { transition: opacity 0.4s ease; }
+
+      .boot-text {
+        display: flex;
+        align-items: baseline;
+        gap: 0.4rem;
+        margin: 0;
+        font-size: clamp(1.25rem, 4vw, 1.75rem);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: rgba(245, 245, 245, 0.85);
+      }
+
+      /* Three dots fading in sequence, slow enough not to compete with the
+         rainbow sweep beside them. */
+      .boot-dots { display: inline-flex; align-items: center; gap: 3px; }
+      .boot-dots i {
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: hb-dot 1.4s ease-in-out infinite;
+      }
+      .boot-dots i:nth-child(2) { animation-delay: 0.18s; }
+      .boot-dots i:nth-child(3) { animation-delay: 0.36s; }
+      @keyframes hb-dot { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+
+      /* Same treatment as the login card wordmark; repeated here so the loader
+         needs no external stylesheet. */
+      #boot .rainbow {
+        background-image: linear-gradient(
+          90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #b892ff, #ff6b6b
+        );
+        background-size: 200% auto;
+        animation: hb-rainbow 6s linear infinite;
+      }
+      @supports (background-clip: text) or (-webkit-background-clip: text) {
+        #boot .rainbow {
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+        }
+      }
+      @keyframes hb-rainbow { to { background-position: 200% center; } }
+
+      @media (prefers-reduced-motion: reduce) {
+        #boot, #app, #brand { transition: none; }
+        .boot-dots i { animation: none; opacity: 0.6; }
+        #boot .rainbow { animation: none; }
+      }
+    </style>
   </head>
   <body>
     <div id="backdrop" data-particles="motes"></div>
@@ -47,6 +122,7 @@
       <section id="player"></section>
       <section id="diagnostics"></section>
     </main>
+    <div id="brand"><span class="rainbow">vibedays</span></div>
     <div id="overlay" hidden></div>
     <div id="modal" hidden></div>
     <script type="module" src="/src/main.ts"></script>
