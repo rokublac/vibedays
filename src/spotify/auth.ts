@@ -134,7 +134,17 @@ export async function getAccessToken(
   }
 }
 
+export const INSECURE_CONTEXT_MESSAGE =
+  'Signing in needs a secure connection. Open the site over https, or use '
+  + 'localhost rather than a LAN address during development.'
+
 export async function beginLogin(): Promise<void> {
+  // PKCE needs crypto.subtle, which browsers only expose in a secure context.
+  // Over plain http (a LAN IP on a phone, say) it is simply undefined, and the
+  // button appeared to do nothing at all.
+  if (!window.isSecureContext || !globalThis.crypto?.subtle) {
+    throw new Error(INSECURE_CONTEXT_MESSAGE)
+  }
   const verifier = generateCodeVerifier()
   localStorage.setItem(VERIFIER_KEY, verifier)
   const challenge = await codeChallenge(verifier)

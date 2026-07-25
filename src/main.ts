@@ -50,7 +50,15 @@ async function boot() {
     return
   }
 
-  try { await handleRedirect() } catch (e) { console.error('login failed', e) }
+  // Surfaced on the login card rather than swallowed: a failed exchange used to
+  // leave the page looking signed out with no explanation.
+  let loginError: string | null = null
+  try {
+    await handleRedirect()
+  } catch (e) {
+    console.error('login failed', e)
+    loginError = 'The sign-in did not complete. Please try again.'
+  }
 
   let coords: Coords | null = null
   let source: Diagnostics['source'] = 'none'
@@ -113,7 +121,8 @@ async function boot() {
     buildLogin(overlay, {
       summary: currentSummary(),
       located: base.located,
-      onLogin: () => beginLogin(),
+      error: loginError,
+      onLogin: () => startLogin(),
     })
   }
 
@@ -341,8 +350,17 @@ async function boot() {
     modal.querySelector<HTMLButtonElement>('#about-close')!.focus()
   }
 
+  /** beginLogin can reject before it ever navigates, so never fire and forget. */
+  function startLogin(): void {
+    beginLogin().catch((e) => {
+      console.error('could not start login', e)
+      loginError = e instanceof Error ? e.message : String(e)
+      showLogin()
+    })
+  }
+
   const account = buildAccount(document.getElementById('account-slot')!, {
-    onSignIn: () => beginLogin(),
+    onSignIn: () => startLogin(),
     onAbout: () => showAbout(),
     onSignOut: () => {
       logout()
@@ -360,8 +378,11 @@ async function boot() {
     try {
       profile = await fetchProfile(token)
     } catch (e) {
+      // We hold a working token, so the user IS signed in. Falling back to null
+      // showed "Sign in with Spotify" to someone already signed in, and that
+      // button then did nothing useful.
       console.error('could not load profile', e)
-      profile = null
+      profile = { id: '', displayName: 'Spotify', avatarUrl: null, product: null }
     }
     account.update(profile)
     return profile

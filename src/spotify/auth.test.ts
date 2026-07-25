@@ -1,9 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import {
-  generateCodeVerifier, codeChallenge, buildAuthUrl,
-  saveTokens, loadTokens, isLoggedIn, exchangeCodeForTokens,
-  refreshAccessToken, getAccessToken, type Tokens,
-} from './auth'
+import { generateCodeVerifier, codeChallenge, buildAuthUrl, saveTokens, loadTokens, isLoggedIn, exchangeCodeForTokens, refreshAccessToken, getAccessToken, type Tokens, beginLogin, INSECURE_CONTEXT_MESSAGE } from './auth'
 
 beforeEach(() => localStorage.clear())
 
@@ -94,5 +90,24 @@ describe('refreshAccessToken', () => {
     const t = await refreshAccessToken({ refreshToken: 'R', clientId: 'CID' }, fetchFn)
     expect(t.accessToken).toBe('N')
     expect(t.refreshToken).toBe('R')
+  })
+})
+
+describe('beginLogin in an insecure context', () => {
+  it('rejects with an explanation instead of doing nothing', async () => {
+    // crypto.subtle is undefined over plain http, so PKCE cannot run. The
+    // button previously appeared dead with no message anywhere.
+    const secure = window.isSecureContext
+    Object.defineProperty(window, 'isSecureContext', { value: false, configurable: true })
+    try {
+      await expect(beginLogin()).rejects.toThrow(INSECURE_CONTEXT_MESSAGE)
+    } finally {
+      Object.defineProperty(window, 'isSecureContext', { value: secure, configurable: true })
+    }
+  })
+
+  it('names https and localhost as the fix', () => {
+    expect(INSECURE_CONTEXT_MESSAGE).toContain('https')
+    expect(INSECURE_CONTEXT_MESSAGE).toContain('localhost')
   })
 })

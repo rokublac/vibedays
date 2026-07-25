@@ -58,10 +58,11 @@ export const PHASE_LABELS: Record<SunPhase, string> = {
 
 /** Search terms per phase — the highest-priority part of every query. */
 const PHASE_TERMS: Record<SunPhase, string> = {
-  // Energy winds down across these three: unwinding, then zen, then 3am.
+  // Energy winds down across these three: unwinding, then heading for bed,
+  // then properly asleep. Both night phases ask for sleep, the deeper one more so.
   evening: 'evening chill unwind',
-  'deep-night': 'late night mellow zen',
-  'late-night': 'sleep ambient dreamy',
+  'late-night': 'late night sleep mellow',
+  'deep-night': 'deep sleep ambient dreamy',
   dawn: 'dawn early calm',
   'sunrise-golden': 'sunrise golden hour',
   morning: 'morning fresh',

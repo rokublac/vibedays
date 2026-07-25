@@ -7,6 +7,8 @@ export interface LoginOptions {
   /** Live condition summary, so the app visibly works before you sign in. */
   summary: string
   located: boolean
+  /** Shown when a sign-in attempt failed, rather than failing silently. */
+  error?: string | null
   onLogin(): void
 }
 
@@ -17,6 +19,12 @@ export function buildLogin(root: HTMLElement, opts: LoginOptions): void {
       <p>
         vibedays fetches your location's time of day, weather and other data points and matches it to a Spotify playlist. It dynamically changes the music depending on the vibe.
       </p>
+      ${opts.error
+        ? `<div class="callout callout-error">
+             <p class="callout-title">Could not sign in</p>
+             <p class="callout-body">${escapeHtml(opts.error)}</p>
+           </div>`
+        : ''}
       ${opts.located
         ? `<p class="detected">Detected vibe: <strong>${escapeHtml(opts.summary)}</strong></p>`
         : `<div class="callout">

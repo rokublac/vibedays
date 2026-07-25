@@ -7,10 +7,11 @@ import type { SunPhase, WeatherKind, Season, Palette, ParticleType } from '../ty
  * this across every phase, so new gradients cannot be added blind.
  */
 const GRADIENT_BY_PHASE: Record<SunPhase, [string, string]> = {
-  // The night side darkens as the routine does: evening → deep night → 3am.
+  // The night side darkens as the routine does: evening, then late night,
+  // then the small hours are darkest of all.
   evening: ['#2b2b52', '#16162e'],
-  'deep-night': ['#12122a', '#08081a'],
-  'late-night': ['#0a0a14', '#05050c'],
+  'late-night': ['#12122a', '#08081a'],
+  'deep-night': ['#0a0a14', '#05050c'],
   dawn: ['#2a2a4a', '#4a4a6a'],
   'sunrise-golden': ['#ffd9a0', '#ffb37d'],
   morning: ['#ffd9a0', '#a0c4ff'],

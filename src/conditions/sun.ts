@@ -11,9 +11,9 @@ const BLUE_MIN = 60 // dusk window after sunset
 const MIDDAY_MIN = 120 // either side of solar noon
 
 /** Clock hour at which unwinding becomes winding down. */
-const DEEP_NIGHT_HOUR = 22
-/** Clock hour after which it is the small hours rather than merely late. */
-const LATE_NIGHT_END_HOUR = 4
+const LATE_NIGHT_HOUR = 22
+/** Clock hour at which the small hours give way to pre-dawn. */
+const DEEP_NIGHT_END_HOUR = 4
 
 /**
  * Fallback for when sun times are unavailable (no location) or degenerate
@@ -38,9 +38,11 @@ export function clockPhase(now: Date): SunPhase {
  */
 export function nightPhase(now: Date): SunPhase {
   const h = now.getHours()
-  if (h < LATE_NIGHT_END_HOUR) return 'late-night'
-  if (h >= DEEP_NIGHT_HOUR) return 'deep-night'
-  // 04:00 until dawn reads as winding-down rather than evening.
+  // Deep night is the small hours, late night the stretch before midnight.
+  // Named the other way round these read backwards: nobody calls 10pm "deep".
+  if (h < DEEP_NIGHT_END_HOUR) return 'deep-night'
+  if (h >= LATE_NIGHT_HOUR) return 'late-night'
+  // 04:00 until dawn is still the small hours, not the evening.
   if (h < 12) return 'deep-night'
   return 'evening'
 }

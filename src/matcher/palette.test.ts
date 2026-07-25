@@ -55,10 +55,11 @@ describe('derivePalette', () => {
   it('darkens across the night phases as the routine winds down', () => {
     const lum = (hex: string) => luminance(hex)
     const evening = derivePalette('evening', 'clear', 'winter').gradient[0]
-    const deep = derivePalette('deep-night', 'clear', 'winter').gradient[0]
     const late = derivePalette('late-night', 'clear', 'winter').gradient[0]
-    expect(lum(evening)).toBeGreaterThan(lum(deep))
-    expect(lum(deep)).toBeGreaterThan(lum(late))
+    const deep = derivePalette('deep-night', 'clear', 'winter').gradient[0]
+    // Darkest at the deepest hour, not merely at the latest label.
+    expect(lum(evening)).toBeGreaterThan(lum(late))
+    expect(lum(late)).toBeGreaterThan(lum(deep))
   })
   it('carries weather particles and season accent', () => {
     const p = derivePalette('afternoon', 'rain', 'autumn')

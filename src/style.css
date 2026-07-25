@@ -658,6 +658,9 @@ button { cursor: pointer; font-family: inherit; }
 .callout-title { margin: 0 0 0.3rem; font-size: 0.9375rem; font-weight: 700; }
 .callout-body { margin: 0; font-size: 0.875rem; line-height: 1.55; color: var(--fg-muted); }
 
+.login-card .callout-error { border-left-color: #ff8fa3; }
+.login-card .callout-error .callout-title { color: #ff8fa3; }
+
 /* On the fixed dark login card the palette tokens do not apply. */
 .login-card .callout { border-left-color: rgba(245, 245, 245, 0.5); }
 .login-card .callout-title { color: #f5f5f5; }

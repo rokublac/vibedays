@@ -10,7 +10,7 @@ const at = (hhmm: string) => new Date(`2026-07-25T${hhmm}:00`)
 
 describe('computeSunPhase', () => {
   it.each([
-    ['03:00', 'late-night'],
+    ['03:00', 'deep-night'],
     ['06:30', 'dawn'],
     ['07:30', 'sunrise-golden'],
     ['09:00', 'morning'],
@@ -20,7 +20,7 @@ describe('computeSunPhase', () => {
     ['17:30', 'blue-hour'],
     ['18:45', 'evening'],
     ['21:00', 'evening'],
-    ['22:30', 'deep-night'],
+    ['22:30', 'late-night'],
   ])('%s → %s', (time, expected) => {
     expect(computeSunPhase(at(time), SUN)).toBe(expected)
   })
@@ -39,7 +39,7 @@ describe('computeSunPhase', () => {
     expect(computeSunPhase(new Date('2026-07-25T18:45:00'), early)).toBe('evening')
   })
 
-  it('walks evening → deep night → late night through the small hours', () => {
+  it('walks evening → late night → deep night through the small hours', () => {
     const early = {
       sunrise: new Date('2026-07-25T06:57:00'),
       sunset: new Date('2026-07-25T17:11:00'),
@@ -47,10 +47,11 @@ describe('computeSunPhase', () => {
     const phaseAt = (t: string) => computeSunPhase(new Date(`2026-07-25T${t}:00`), early)
     expect(phaseAt('19:30')).toBe('evening')
     expect(phaseAt('21:59')).toBe('evening')
-    expect(phaseAt('22:00')).toBe('deep-night')
-    expect(phaseAt('23:30')).toBe('deep-night')
-    expect(phaseAt('00:30')).toBe('late-night')
-    expect(phaseAt('03:30')).toBe('late-night')
+    // Late night is the stretch before midnight; deep night is the small hours.
+    expect(phaseAt('22:00')).toBe('late-night')
+    expect(phaseAt('23:30')).toBe('late-night')
+    expect(phaseAt('00:30')).toBe('deep-night')
+    expect(phaseAt('03:30')).toBe('deep-night')
     expect(phaseAt('04:30')).toBe('deep-night')
   })
 

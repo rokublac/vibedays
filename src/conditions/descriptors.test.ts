@@ -85,10 +85,19 @@ describe('headline and conditionWords', () => {
     const terms = (phase: 'evening' | 'deep-night' | 'late-night') =>
       describeTerms(C({ phase }))[0]
     expect(terms('evening')).toContain('unwind')
-    expect(terms('deep-night')).toContain('mellow')
+    // Both night phases ask for sleep; the deeper one asks harder.
     expect(terms('late-night')).toContain('sleep')
-    // Evening must not ask for sleep music: that was the complaint.
+    expect(terms('deep-night')).toContain('sleep')
+    expect(terms('deep-night')).toContain('deep')
+    // Evening must not ask for sleep music: that was the original complaint.
     expect(terms('evening')).not.toContain('sleep')
+  })
+
+  it('names the night phases the way people do', () => {
+    // 10pm is "late night"; the small hours are the deep part. Named the other
+    // way round the labels read backwards.
+    expect(headline(C({ phase: 'late-night' }))).toBe('Late night')
+    expect(headline(C({ phase: 'deep-night' }))).toBe('Deep night')
   })
   it('lists the bands, skipping "none" precipitation', () => {
     expect(conditionWords(C())).toEqual(['clear', 'cold', 'winter'])

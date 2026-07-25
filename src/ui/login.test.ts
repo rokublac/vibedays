@@ -4,10 +4,14 @@ import {
   LOCATION_CALLOUT_TITLE, LOCATION_CALLOUT_BODY,
 } from './login'
 
-const mount = (summary = 'clear · cold · winter · Deep night', located = true) => {
+const mount = (
+  summary = 'clear · cold · winter · Deep night',
+  located = true,
+  error: string | null = null,
+) => {
   const root = document.createElement('div')
   const onLogin = vi.fn()
-  buildLogin(root, { summary, located, onLogin })
+  buildLogin(root, { summary, located, error, onLogin })
   return { root, onLogin }
 }
 
@@ -79,6 +83,22 @@ describe('buildLogin', () => {
     expect(mark.textContent).toBe('vibedays')
     // Still real text, so it is selectable, searchable and read aloud.
     expect(mount().root.querySelector('h2')!.textContent).toBe('Welcome to vibedays')
+  })
+
+  it('shows a failed sign-in instead of swallowing it', () => {
+    const { root } = mount('x', true, 'The sign-in did not complete. Please try again.')
+    const err = root.querySelector('.callout-error')!
+    expect(err.textContent).toContain('Could not sign in')
+    expect(err.textContent).toContain('did not complete')
+  })
+
+  it('shows no error callout when nothing went wrong', () => {
+    expect(mount().root.querySelector('.callout-error')).toBeNull()
+  })
+
+  it('escapes the error rather than injecting it', () => {
+    const { root } = mount('x', true, '<img src=x onerror=alert(1)>')
+    expect(root.querySelector('img')).toBeNull()
   })
 
   it('keeps the copy free of em dashes', () => {
