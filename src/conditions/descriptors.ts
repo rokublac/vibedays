@@ -72,6 +72,22 @@ const PHASE_TERMS: Record<SunPhase, string> = {
   'blue-hour': 'dusk blue hour',
 }
 
+/**
+ * Terms the query ladder must never drop, per phase. Broadening a query is
+ * normally an improvement, but the small hours are the exception: strip the
+ * mood words off "lofi deep sleep ambient" and you get "lofi", which is no
+ * longer a night query at all. Keeping "sleep" pinned means every rung, down
+ * to the last resort, still asks for something you can fall asleep to.
+ */
+const PINNED_TERMS: Partial<Record<SunPhase, string[]>> = {
+  'late-night': ['sleep'],
+  'deep-night': ['sleep'],
+}
+
+export function pinnedTerms(c: Conditions): string[] {
+  return PINNED_TERMS[c.phase] ?? []
+}
+
 /** Bands that add nothing to a search are mapped to null and dropped. */
 const PRECIP_TERMS: Record<PrecipBand, string | null> = {
   none: null,

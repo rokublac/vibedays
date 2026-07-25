@@ -44,6 +44,21 @@ export function nameContradicts(name: string, words: string[]): boolean {
   return pattern.test(name)
 }
 
+/**
+ * Names that promise something you can actually sleep to. Whole-word matching
+ * means the variants have to be spelled out: "sleep" alone would miss
+ * "Sleepy Lofi", which is exactly the kind of playlist we are looking for.
+ */
+const SLEEP_WORDS = ['sleep', 'sleepy', 'sleeping', 'asleep']
+
+/**
+ * The two phases where the listener is heading for bed or already there.
+ * Evening is still awake-and-unwinding, so it is deliberately left out.
+ */
+function prefersSleep(c: Conditions): boolean {
+  return c.phase === 'late-night' || c.phase === 'deep-night'
+}
+
 export interface RankedPlaylists {
   clean: SpotifyPlaylist[]
   contradicting: SpotifyPlaylist[]
@@ -52,6 +67,9 @@ export interface RankedPlaylists {
 /**
  * Splits rather than filters: if every result contradicts, something is better
  * than silence, so the caller can still fall back to the rejected pile.
+ *
+ * On the night phases `clean` is ordered sleep-first. The caller picks from the
+ * top of the pool, so ordering is what actually decides what plays.
  */
 export function rankPlaylists(playlists: SpotifyPlaylist[], c: Conditions): RankedPlaylists {
   const words = contradictions(c)
@@ -61,5 +79,16 @@ export function rankPlaylists(playlists: SpotifyPlaylist[], c: Conditions): Rank
     if (nameContradicts(p.name, words)) contradicting.push(p)
     else clean.push(p)
   }
-  return { clean, contradicting }
+  if (!prefersSleep(c)) return { clean, contradicting }
+
+  // Stable partition, so the existing order survives inside each group.
+  // nameContradicts is just a whole-word matcher; here it is asking the
+  // opposite question.
+  const sleepy: SpotifyPlaylist[] = []
+  const rest: SpotifyPlaylist[] = []
+  for (const p of clean) {
+    if (nameContradicts(p.name, SLEEP_WORDS)) sleepy.push(p)
+    else rest.push(p)
+  }
+  return { clean: [...sleepy, ...rest], contradicting }
 }

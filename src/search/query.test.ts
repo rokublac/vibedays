@@ -61,6 +61,51 @@ describe('buildQueryLadder', () => {
     expect(buildQueryLadder([])).toEqual([ANCHOR])
   })
 
+  describe('pinned terms', () => {
+    it('keeps a pinned word on every rung above the last-resort anchor', () => {
+      const ladder = buildQueryLadder(['late night sleep mellow', 'cold'], 'lofi', ['sleep'])
+      for (const rung of ladder.slice(0, -1)) expect(rung).toMatch(/(^|\s)sleep(\s|$)/)
+    })
+
+    it('does not repeat a pinned word the phase already carries', () => {
+      const ladder = buildQueryLadder(['deep sleep ambient dreamy'], 'lofi', ['sleep'])
+      expect(ladder).toEqual([
+        'lofi deep sleep ambient dreamy',
+        'lofi deep sleep ambient',
+        'lofi deep sleep',
+        // "lofi deep" + pinned "sleep" collapses into the rung above it.
+        'lofi sleep',
+        'lofi',
+      ])
+      expect(new Set(ladder).size).toBe(ladder.length)
+    })
+
+    it('rescues the rungs that used to drop sleep entirely', () => {
+      const ladder = buildQueryLadder(['late night sleep mellow'], 'lofi', ['sleep'])
+      expect(ladder).toContain('lofi late sleep')
+      expect(ladder).not.toContain('lofi late')
+      expect(ladder).not.toContain('lofi late night')
+    })
+
+    // Pinning removed the plain-anchor rung, and with it the guarantee that
+    // some rung always matches. It belongs below the pinned one, not instead.
+    it('still keeps a bare anchor underneath, as a true last resort', () => {
+      const ladder = buildQueryLadder(['late night sleep mellow'], 'lofi', ['sleep'])
+      expect(ladder.at(-2)).toBe('lofi sleep')
+      expect(ladder.at(-1)).toBe('lofi')
+    })
+
+    it('adds no second anchor rung when nothing is pinned', () => {
+      const ladder = buildQueryLadder(['evening chill'], 'lofi')
+      expect(ladder.filter((r) => r === 'lofi')).toHaveLength(1)
+    })
+
+    it('is unchanged when nothing is pinned', () => {
+      expect(buildQueryLadder(['evening chill'], 'lofi', []))
+        .toEqual(buildQueryLadder(['evening chill'], 'lofi'))
+    })
+  })
+
   it('uses the genre anchor when one is given', () => {
     expect(buildQueryLadder(['evening chill'], 'synthwave retrowave')).toEqual([
       'synthwave retrowave evening chill',

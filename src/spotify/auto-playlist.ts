@@ -1,6 +1,6 @@
 import type { Conditions } from '../types'
 import type { Genre } from '../config/genres'
-import { describeTerms, signature } from '../conditions/descriptors'
+import { describeTerms, pinnedTerms, signature } from '../conditions/descriptors'
 import { buildQueryLadder } from '../search/query'
 import { rankPlaylists } from '../search/rank'
 import type { SpotifyPlaylist } from './search-api'
@@ -109,7 +109,7 @@ export function createAutoPlaylists(deps: AutoPlaylistDeps): AutoPlaylists {
   }
 
   async function walkLadder(c: Conditions): Promise<{ pool: SpotifyPlaylist[]; query: string }> {
-    const ladder = buildQueryLadder(describeTerms(c), deps.genre().anchor)
+    const ladder = buildQueryLadder(describeTerms(c), deps.genre().anchor, pinnedTerms(c))
     let best: { pool: SpotifyPlaylist[]; query: string } = { pool: [], query: ladder[0] }
     let anything: { pool: SpotifyPlaylist[]; query: string } = { pool: [], query: ladder[0] }
 
