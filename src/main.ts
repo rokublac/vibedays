@@ -149,6 +149,8 @@ async function boot() {
           onState: (track, paused) => playerUI.update(track, paused),
           onFatal: (kind, msg) => {
             console.error(`Spotify player ${kind} error:`, msg)
+            issue = `player ${kind}: ${msg || 'no message'}`
+            updateDiagnostics()
             started = false
             // A free plan is not a bad token. Clearing it would send the user
             // back to the login screen, where signing in again changes nothing.
@@ -282,6 +284,8 @@ async function boot() {
       if (isCurrent()) await fadeVolume((v) => p.setVolume(v), 0, VOLUME, { isCurrent })
     } catch (e) {
       console.error('could not start playlist', e)
+      issue = `playback: ${e instanceof Error ? e.message : String(e)}`
+      updateDiagnostics()
       // Never leave the player silent because a switch failed mid-fade.
       if (isCurrent()) await player?.setVolume(VOLUME).catch(() => {})
     } finally {
@@ -371,6 +375,8 @@ async function boot() {
   })
 
   let profile: SpotifyProfile | null = null
+  /** Surfaced in the diagnostics panel; a phone has no console to read. */
+  let issue: string | null = null
 
   async function refreshProfile(): Promise<SpotifyProfile | null> {
     const token = await getAccessToken()
@@ -382,7 +388,9 @@ async function boot() {
       // showed "Sign in with Spotify" to someone already signed in, and that
       // button then did nothing useful.
       console.error('could not load profile', e)
-      profile = { id: '', displayName: 'Spotify', avatarUrl: null, product: null }
+      issue = `profile: ${e instanceof Error ? e.message : String(e)}`
+      profile = { id: '', displayName: 'Signed in', avatarUrl: null, product: null }
+      updateDiagnostics()
     }
     account.update(profile)
     return profile
@@ -392,6 +400,7 @@ async function boot() {
 
   function updateDiagnostics() {
     diagnostics.update({
+      issue,
       now: new Date(),
       phase: base.phase,
       season: base.season,

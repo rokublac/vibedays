@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { formatDiagnostics, buildDiagnostics, type Diagnostics } from './diagnostics'
 
 const full: Diagnostics = {
+  issue: null,
   sunrise: null,
   sunset: null,
   cloudCover: null,
@@ -100,6 +101,17 @@ describe('formatDiagnostics trimming', () => {
     const labels = formatDiagnostics(full).map((r) => r.label)
     expect(labels).not.toContain('Playlists')
     expect(labels).not.toContain('Matches')
+  })
+
+  it('shows a Spotify failure on screen, since a phone has no console', () => {
+    const map = Object.fromEntries(
+      formatDiagnostics({ ...full, issue: 'profile: 403 forbidden' }).map((r) => [r.label, r.value]),
+    )
+    expect(map['Issue']).toBe('profile: 403 forbidden')
+  })
+
+  it('omits the row entirely when nothing has failed', () => {
+    expect(formatDiagnostics(full).map((r) => r.label)).not.toContain('Issue')
   })
 
   it('does not surface the raw search query', () => {

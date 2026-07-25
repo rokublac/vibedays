@@ -1,6 +1,8 @@
 import type { SunPhase, Season, WeatherKind, Coords } from '../types'
 
 export interface Diagnostics {
+  /** Last Spotify failure, surfaced on screen because phones have no console. */
+  issue: string | null
   now: Date
   phase: SunPhase
   sunrise: Date | null
@@ -62,6 +64,7 @@ export function formatDiagnostics(d: Diagnostics): Array<{ label: string; value:
     { label: 'Vibe', value: `${d.phase} · ${d.season}` },
     { label: 'Daylight', value: d.sunrise && d.sunset ? `${hm(d.sunrise)} → ${hm(d.sunset)}` : '—' },
     { label: 'Weather', value: weather(d) },
+    ...(d.issue ? [{ label: 'Issue', value: d.issue }] : []),
   ]
 }
 
