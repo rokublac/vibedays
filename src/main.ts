@@ -31,8 +31,10 @@ async function boot() {
   if (!SPOTIFY_CLIENT_ID) {
     overlay.hidden = false
     overlay.innerHTML =
-      '<div class="login-card"><h2>Setup needed</h2><p>Add your Spotify Client ID to ' +
-      '<code>src/config/spotify.ts</code>.</p></div>'
+      '<div class="login-card"><h2>Setup needed</h2>' +
+      '<p>Copy <code>.env.example</code> to <code>.env</code> and add your Spotify ' +
+      'Client ID as <code>VITE_SPOTIFY_CLIENT_ID</code>, then restart the dev server.</p>' +
+      '<p class="fineprint">See the README for the full setup.</p></div>'
     return
   }
 

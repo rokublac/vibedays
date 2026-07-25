@@ -15,5 +15,15 @@
     "vite": "^5.4.0",
     "vitest": "^2.0.0",
     "jsdom": "^24.1.0"
-  }
+  },
+  "description": "A lofi player that follows your local sun and weather",
+  "license": "MIT",
+  "keywords": [
+    "lofi",
+    "spotify",
+    "weather",
+    "ambient",
+    "music",
+    "web-playback-sdk"
+  ]
 }

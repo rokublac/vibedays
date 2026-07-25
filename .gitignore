@@ -1,2 +1,15 @@
 node_modules/
 dist/
+
+# Local environment. .env.example is committed; .env is yours.
+.env
+.env.*
+!.env.example
+
+# Internal planning notes, not part of the project
+docs/superpowers/
+
+.DS_Store
+*.log
+.vscode/
+.idea/
