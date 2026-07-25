@@ -25,6 +25,14 @@ export function pickAvatar(images: unknown): string | null {
   return chosen.url as string
 }
 
+/** Carries the status so callers can tell "not allowed" from "not authenticated". */
+export class ProfileError extends Error {
+  constructor(readonly status: number, readonly detail: string) {
+    super(`profile request failed: ${status}${detail ? ` - ${detail}` : ''}`)
+    this.name = 'ProfileError'
+  }
+}
+
 export async function fetchProfile(
   token: string,
   fetchFn: typeof fetch = fetch,
@@ -34,7 +42,7 @@ export async function fetchProfile(
   })
   if (!res.ok) {
     const detail = await res.text().catch(() => '')
-    throw new Error(`profile request failed: ${res.status}${detail ? ` — ${detail}` : ''}`)
+    throw new ProfileError(res.status, detail)
   }
   const data = (await res.json()) as Record<string, unknown>
   const id = typeof data.id === 'string' ? data.id : ''

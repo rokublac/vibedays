@@ -41,6 +41,36 @@ export function buildLogin(root: HTMLElement, opts: LoginOptions): void {
   root.querySelector('#login-btn')!.addEventListener('click', () => opts.onLogin())
 }
 
+export const NOT_REGISTERED_TITLE = 'This account does not have access yet'
+export const NOT_REGISTERED_BODY = [
+  'Spotify apps start in development mode, which only lets a handful of named '
+    + 'accounts in. The account you signed in with is not on that list.',
+  'If this is your own app, open the Spotify developer dashboard, go to '
+    + 'Settings and then User Management, and add the email address of the '
+    + 'account you are using. Otherwise ask whoever runs this copy to add you.',
+]
+
+export interface AccessNoticeOptions {
+  displayName: string | null
+  onSignOut(): void
+}
+
+/**
+ * Shown when Spotify accepts the login but refuses the account. Deliberately a
+ * dead end with a way out: offering "log in" again would just loop, because
+ * signing in is not the thing that is missing.
+ */
+export function buildAccessNotice(root: HTMLElement, opts: AccessNoticeOptions): void {
+  root.innerHTML = `
+    <div class="login-card">
+      <h2>${NOT_REGISTERED_TITLE}</h2>
+      ${NOT_REGISTERED_BODY.map((p) => `<p>${p}</p>`).join('')}
+      <button id="access-signout" type="button">Sign out</button>
+    </div>`
+
+  root.querySelector('#access-signout')!.addEventListener('click', () => opts.onSignOut())
+}
+
 export interface PremiumNoticeOptions {
   /** Who is signed in, so it is obvious which account is the problem. */
   displayName: string | null

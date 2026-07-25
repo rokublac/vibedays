@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
-  buildLogin, buildPremiumNotice, escapeHtml,
+  buildLogin, buildPremiumNotice, buildAccessNotice, escapeHtml,
   LOCATION_CALLOUT_TITLE, LOCATION_CALLOUT_BODY,
+  NOT_REGISTERED_TITLE, NOT_REGISTERED_BODY,
 } from './login'
 
 const mount = (
@@ -169,5 +170,43 @@ describe('buildPremiumNotice', () => {
   it('escapes the display name', () => {
     const { root } = notice('<img src=x onerror=alert(1)>')
     expect(root.querySelector('img')).toBeNull()
+  })
+})
+
+describe('buildAccessNotice', () => {
+  const mountAccess = () => {
+    const root = document.createElement('div')
+    const onSignOut = vi.fn()
+    buildAccessNotice(root, { displayName: 'Roku', onSignOut })
+    return { root, onSignOut }
+  }
+
+  it('explains that the account is not on the allowlist', () => {
+    const text = mountAccess().root.textContent!
+    expect(text).toContain(NOT_REGISTERED_TITLE)
+    expect(text).toContain('development mode')
+  })
+
+  it('says exactly where to add the account', () => {
+    const body = NOT_REGISTERED_BODY.join(' ')
+    expect(body).toContain('User Management')
+    expect(body).toContain('developer dashboard')
+  })
+
+  it('does NOT offer to log in again, which would just loop', () => {
+    // Signing in is not the missing piece: Spotify already issued a token.
+    const { root } = mountAccess()
+    expect(root.querySelector('#login-btn')).toBeNull()
+    expect(root.textContent!.toLowerCase()).not.toContain('log in with spotify')
+  })
+
+  it('offers a way out via sign out', () => {
+    const { root, onSignOut } = mountAccess()
+    root.querySelector<HTMLButtonElement>('#access-signout')!.click()
+    expect(onSignOut).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the copy free of em dashes', () => {
+    for (const p of NOT_REGISTERED_BODY) expect(p).not.toContain('—')
   })
 })

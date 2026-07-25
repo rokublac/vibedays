@@ -14,8 +14,8 @@ import { buildAccount } from './ui/account'
 import { buildGenrePicker } from './ui/genre'
 import { buildAbout } from './ui/about'
 import { loadGenre, saveGenre, type Genre } from './config/genres'
-import { buildLogin, buildPremiumNotice } from './ui/login'
-import { fetchProfile, type SpotifyProfile } from './spotify/profile-api'
+import { buildLogin, buildPremiumNotice, buildAccessNotice } from './ui/login'
+import { fetchProfile, ProfileError, type SpotifyProfile } from './spotify/profile-api'
 import { handleRedirect, isLoggedIn, beginLogin, getAccessToken, logout } from './spotify/auth'
 import { searchPlaylists } from './spotify/search-api'
 import { createAutoPlaylists } from './spotify/auto-playlist'
@@ -123,6 +123,14 @@ async function boot() {
       located: base.located,
       error: loginError,
       onLogin: () => startLogin(),
+    })
+  }
+
+  function showAccessDenied() {
+    overlay.hidden = false
+    buildAccessNotice(overlay, {
+      displayName: profile?.displayName ?? null,
+      onSignOut: () => { logout(); window.location.reload() },
     })
   }
 
@@ -378,22 +386,38 @@ async function boot() {
   /** Surfaced in the diagnostics panel; a phone has no console to read. */
   let issue: string | null = null
 
-  async function refreshProfile(): Promise<SpotifyProfile | null> {
+  /**
+   * What the profile call tells us about the session. Signing in successfully
+   * is not the same as being able to use the app: Spotify will hand out a
+   * perfectly good token to an account its dashboard then refuses.
+   */
+  type ProfileState =
+    | { kind: 'ok'; profile: SpotifyProfile }
+    | { kind: 'no-token' }
+    | { kind: 'not-registered' }
+    | { kind: 'expired' }
+    | { kind: 'unreachable'; message: string }
+
+  async function loadProfile(): Promise<ProfileState> {
     const token = await getAccessToken()
-    if (!token) { profile = null; account.update(null); return null }
+    if (!token) { profile = null; account.update(null); return { kind: 'no-token' } }
     try {
       profile = await fetchProfile(token)
+      account.update(profile)
+      issue = null
+      return { kind: 'ok', profile }
     } catch (e) {
-      // We hold a working token, so the user IS signed in. Falling back to null
-      // showed "Sign in with Spotify" to someone already signed in, and that
-      // button then did nothing useful.
       console.error('could not load profile', e)
       issue = `profile: ${e instanceof Error ? e.message : String(e)}`
-      profile = { id: '', displayName: 'Signed in', avatarUrl: null, product: null }
-      updateDiagnostics()
+      profile = null
+      account.update(null)
+      if (e instanceof ProfileError) {
+        // 403 means the token is fine but the account is not allowed in.
+        if (e.status === 403) return { kind: 'not-registered' }
+        if (e.status === 401) return { kind: 'expired' }
+      }
+      return { kind: 'unreachable', message: e instanceof Error ? e.message : String(e) }
     }
-    account.update(profile)
-    return profile
   }
 
   const diagnostics = buildDiagnostics(document.getElementById('diagnostics')!)
@@ -423,11 +447,34 @@ async function boot() {
   if (!isLoggedIn()) {
     showLogin()
   } else {
-    const me = await refreshProfile()
-    // Catch the free tier before the SDK does, so the failure is explained
-    // rather than appearing as a bounce back to the login screen.
-    if (me && me.product && me.product !== 'premium') showPremiumRequired()
-    else await ensurePlayerAndRender()
+    // Nothing starts until we know the session is actually usable. Booting the
+    // player first left the app looking signed in while every call failed.
+    const state = await loadProfile()
+    switch (state.kind) {
+      case 'not-registered':
+        showAccessDenied()
+        break
+      case 'expired':
+        // The token is dead, so stop claiming to be signed in.
+        logout()
+        loginError = 'Your session expired. Please sign in again.'
+        showLogin()
+        break
+      case 'no-token':
+        logout()
+        showLogin()
+        break
+      case 'unreachable':
+        loginError = `Could not reach Spotify: ${state.message}`
+        showLogin()
+        break
+      case 'ok':
+        // Catch the free tier before the SDK does, so the failure is explained
+        // rather than appearing as a bounce back to the login screen.
+        if (state.profile.product && state.profile.product !== 'premium') showPremiumRequired()
+        else await ensurePlayerAndRender()
+        break
+    }
   }
 
   // Real-time tick: recompute clock/time-of-day/season every second (local, no

@@ -65,3 +65,23 @@ describe('fetchProfile', () => {
     await expect(fetchProfile('T', fetchFn as never)).rejects.toThrow('token expired')
   })
 })
+
+describe('ProfileError', () => {
+  const failing = (status: number, body = '') =>
+    vi.fn().mockResolvedValue({ ok: false, status, text: async () => body }) as unknown as typeof fetch
+
+  it('carries the status, so a refusal can be told from a dead token', async () => {
+    // 403 means the account is not on the dashboard allowlist; 401 means the
+    // token itself is finished. They need opposite handling.
+    await expect(fetchProfile('T', failing(403, 'not registered'))).rejects.toMatchObject({
+      name: 'ProfileError',
+      status: 403,
+    })
+    await expect(fetchProfile('T', failing(401))).rejects.toMatchObject({ status: 401 })
+  })
+
+  it('keeps Spotify\'s explanation in the message', async () => {
+    await expect(fetchProfile('T', failing(403, 'User not registered')))
+      .rejects.toThrow('User not registered')
+  })
+})
