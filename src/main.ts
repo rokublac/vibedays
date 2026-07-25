@@ -1,7 +1,8 @@
 import './style.css'
 import type { Conditions, Coords } from './types'
 import { resolveConditions } from './conditions/provider'
-import { getBrowserLocation, reverseGeocode } from './conditions/location'
+import { getBrowserLocation, reverseGeocode, geocodeCity } from './conditions/location'
+import { loadPlace, savePlace, clearPlace } from './config/place'
 import { fetchWeatherDetail } from './conditions/weather'
 import { createWeatherStore } from './conditions/weather-store'
 import { match } from './matcher/matcher'
@@ -62,9 +63,22 @@ async function boot() {
 
   let coords: Coords | null = null
   let source: Diagnostics['source'] = 'none'
-  try { coords = await getBrowserLocation(); source = 'geolocation' } catch { coords = null }
-
   let place: string | null = null
+  try {
+    coords = await getBrowserLocation()
+    source = 'geolocation'
+  } catch {
+    // Fall back to a city the user named previously, so a refused permission
+    // does not have to be answered again on every visit.
+    const saved = loadPlace()
+    if (saved) {
+      coords = saved.coords
+      place = saved.name
+      source = 'city'
+    } else {
+      coords = null
+    }
+  }
 
   // Holds the last good reading so a refresh in flight never leaves the app
   // weatherless; see weather-store.ts for why that mattered.
@@ -316,7 +330,22 @@ async function boot() {
 
   const controls = buildControls(document.getElementById('controls')!, {
     onRetryLocation: () => void retryLocation(),
+    onUseCity: (name) => useCity(name),
   })
+
+  /** Resolves a typed city and adopts it as the location. Throws if not found. */
+  async function useCity(name: string): Promise<void> {
+    const found = await geocodeCity(name)
+    coords = found
+    source = 'city'
+    savePlace({ name, coords: found })
+    // The typed name is better than a reverse lookup here: it is what the user
+    // asked for, and it saves a request.
+    place = name
+    await refreshWeather()
+    base = recompute()
+    render()
+  }
 
   /**
    * Re-asks for location. Only useful after the user has changed the site
@@ -326,6 +355,9 @@ async function boot() {
     try {
       coords = await getBrowserLocation()
       source = 'geolocation'
+      // Real coordinates beat a typed city, so stop remembering the fallback.
+      clearPlace()
+      place = null
     } catch {
       return
     }

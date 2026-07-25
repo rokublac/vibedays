@@ -20,6 +20,8 @@ export function formatConditions(c: Conditions): string {
 
 export interface ControlsCallbacks {
   onRetryLocation(): void
+  /** Resolve a typed city name to coordinates. Rejects if it cannot be found. */
+  onUseCity(name: string): Promise<void>
 }
 
 export function buildControls(
@@ -40,10 +42,17 @@ export function buildControls(
     <div id="location-hint" class="callout" hidden>
       <p class="callout-title">Location detection is off</p>
       <p class="callout-body">
-        Turn it on for this site in your browser settings to match your local
-        sunrise, sunset and weather.
+        Turn it on for this site in your browser settings, or name a city and it
+        will use that instead.
         <button id="location-retry" class="link-button" type="button">Try again</button>
       </p>
+      <form id="city-form" class="city-form">
+        <label class="city-label" for="city-input">City</label>
+        <input id="city-input" class="city-input" type="text" autocomplete="address-level2"
+               placeholder="e.g. Sydney" />
+        <button class="btn-quiet" type="submit">Use city</button>
+        <p id="city-error" class="city-error" role="alert" hidden></p>
+      </form>
     </div>
   `
 
@@ -53,6 +62,28 @@ export function buildControls(
   const hint = root.querySelector<HTMLElement>('#location-hint')!
 
   root.querySelector('#location-retry')!.addEventListener('click', () => cb.onRetryLocation())
+
+  const cityForm = root.querySelector<HTMLFormElement>('#city-form')!
+  const cityInput = root.querySelector<HTMLInputElement>('#city-input')!
+  const cityError = root.querySelector<HTMLParagraphElement>('#city-error')!
+  const citySubmit = cityForm.querySelector<HTMLButtonElement>('button[type=submit]')!
+
+  cityForm.addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const name = cityInput.value.trim()
+    if (!name) return
+    cityError.hidden = true
+    citySubmit.disabled = true
+    try {
+      await cb.onUseCity(name)
+    } catch {
+      // Wrong spellings and unknown places are the normal case here, not a fault.
+      cityError.textContent = `Could not find "${name}". Try a different spelling.`
+      cityError.hidden = false
+    } finally {
+      citySubmit.disabled = false
+    }
+  })
 
   return {
     update(c: Conditions) {
