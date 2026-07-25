@@ -21,6 +21,11 @@
 
 * { box-sizing: border-box; }
 
+/* An author `display` rule beats the UA stylesheet's [hidden] rule, so any
+   element given an explicit display silently ignores the hidden attribute.
+   This makes hidden mean hidden, everywhere. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -112,6 +117,89 @@ body {
 
 button { cursor: pointer; font-family: inherit; }
 
+/* ---- Header actions ---- */
+
+.head-actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+
+/* One height for every header control, whatever it contains: the account chip
+   wraps an avatar and the genre chip is text only, so left alone they differ.
+   Scoped to .head-actions so it outranks each control's own padding shorthand. */
+.head-actions .genre-chip,
+.head-actions .account-chip,
+.head-actions .btn-quiet {
+  height: 2.25rem;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.genre { position: relative; }
+
+.genre-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem 0.4rem 0.9rem;
+  border-radius: var(--pill);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--fg) 55%, transparent);
+  color: var(--fg-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.genre-chip:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
+  color: var(--fg);
+  border-color: var(--fg);
+}
+.genre-chip:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; }
+/* Disabled controls are exempt from the contrast minimum, so dimming is safe. */
+.genre-chip:disabled { opacity: 0.4; cursor: default; }
+
+/* Drawn rather than typed: the U+2304 glyph sits low on its baseline and the
+   offset differs by font, so there is no reliable way to align the character. */
+.genre-caret {
+  width: 0.375rem;
+  height: 0.375rem;
+  flex-shrink: 0;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  /* A rotated square's visual weight sits below its box centre. */
+  margin-bottom: 2px;
+  transition: transform 0.2s ease, margin 0.2s ease;
+}
+/* Flip to point up while the menu is open. */
+.genre-chip[aria-expanded='true'] .genre-caret {
+  transform: rotate(-135deg);
+  margin-bottom: -2px;
+}
+
+/* Scrolls rather than running off a short viewport as genres are added. */
+.genre-menu {
+  left: auto;
+  right: 0;
+  min-width: 10rem;
+  max-height: min(60vh, 22rem);
+  overflow-y: auto;
+}
+/* The checked genre is marked with a dot rather than a colour change, so it
+   reads without relying on hue. Compound selector so the indent survives
+   .account-menu-item's padding shorthand regardless of rule order. */
+.account-menu-item.genre-item { position: relative; padding-left: 1.65rem; }
+.account-menu-item.genre-item[aria-checked='true']::before {
+  content: '';
+  position: absolute;
+  left: 0.7rem;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: currentColor;
+}
+.account-menu-item.genre-item[aria-checked='true'] { font-weight: 700; }
+
 /* ---- Account ---- */
 
 /* Quiet outline action. 55% --fg is the lightest border that holds 3:1 against
@@ -172,7 +260,9 @@ button { cursor: pointer; font-family: inherit; }
   top: calc(100% + 0.5rem);
   right: 0;
   z-index: 5;
+  width: max-content;
   min-width: 12rem;
+  max-width: min(20rem, calc(100vw - 2rem));
   padding: 0.5rem;
   border-radius: 10px;
   background: #14141f;
@@ -208,6 +298,40 @@ button { cursor: pointer; font-family: inherit; }
 
 #player { display: flex; flex-direction: column; gap: 0.75rem; align-items: flex-start; }
 
+.context-row { display: flex; align-items: baseline; gap: 0.75rem; max-width: 100%; }
+.context-row[hidden] { display: none; }
+
+/* Quiet by default so it doesn't compete with the playlist name; it is a
+   secondary escape hatch, not a primary control. */
+.context-reroll {
+  flex-shrink: 0;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--pill);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--fg) 55%, transparent);
+  color: var(--fg-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+.context-reroll:hover {
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
+  color: var(--fg);
+  border-color: var(--fg);
+}
+.context-reroll:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.context-reroll[hidden] { display: none; }
+/* Disabled controls are exempt from the contrast minimum, so dimming is safe
+   here in a way it is not for ordinary text. */
+.context-reroll:disabled { opacity: 0.4; cursor: default; }
+.context-reroll:disabled:hover {
+  background: transparent;
+  color: var(--fg-muted);
+  border-color: color-mix(in srgb, var(--fg) 55%, transparent);
+}
+
 /* "Playing from <playlist>" — sits above the bar and links to the source.
    Kept outside .now-bar so it can be its own anchor without nesting links. */
 .context-line {
@@ -222,16 +346,35 @@ button { cursor: pointer; font-family: inherit; }
   color: var(--fg-muted);
   text-decoration: none;
 }
-.context-line[hidden] { display: none; }
 .context-line:hover { color: var(--fg); }
 .context-line:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; border-radius: 4px; }
 .context-line[aria-disabled='true'] { cursor: default; }
 .context-line[aria-disabled='true']:hover { color: var(--fg-muted); }
 
-.context-label { font-weight: 600; }
+/* Never wrap or shrink: the label is the shortest part and was being squeezed
+   onto two lines by a long playlist name. */
+.context-label { font-weight: 600; flex-shrink: 0; white-space: nowrap; }
+
+/* Stands in for the playlist name while a new one is being found. Same
+   typographic slot, so the row does not change shape. */
+.context-status {
+  flex: 1;
+  min-width: 0;
+  font-size: clamp(0.6875rem, 1.4vw, 0.8125rem);
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  animation: hb-breathe 1.2s ease-in-out infinite;
+}
+.context-status[hidden] { display: none; }
 
 .context-name {
   color: var(--fg);
+  /* Truncate well before the full column width, but leave enough to read.
+     min-width: 0 is what lets a flex child shrink far enough to ellipsis. */
+  min-width: 0;
+  max-width: 26rem;
   /* Heavier and slightly tighter than the label: at this size the weight jump
      is what separates the playlist name from the words in front of it. */
   font-weight: 800;
@@ -319,6 +462,15 @@ button { cursor: pointer; font-family: inherit; }
 }
 .transport-main:hover { color: var(--on-accent); transform: scale(1.06); }
 
+/* Waiting on the network. Deliberately a slow breath rather than a spinner:
+   it should register at the edge of attention, not demand it. */
+@keyframes hb-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.now-bar.is-busy .transport-main { animation: hb-breathe 1.2s ease-in-out infinite; }
+.now-bar.is-busy .track-empty { animation: hb-breathe 1.2s ease-in-out infinite; }
+
 /* ---- Now-playing card: a reference/link-out, not a second player ---- */
 
 .track-link {
@@ -373,15 +525,47 @@ button { cursor: pointer; font-family: inherit; }
 
 /* ---- Diagnostics: fine print ---- */
 
-.diagnostics {
-  transition: border-color 1.5s ease;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.45rem 1.5rem;
-  font-size: 0.75rem;
-  margin: 0;
+/* Two columns: the globe stretches to whatever height the rows come to, so
+   the pair always reads as one block. aspect-ratio derives its width from
+   that stretched height rather than the other way round. */
+#diagnostics {
+  display: flex;
+  align-items: stretch;
+  gap: clamp(1rem, 3vw, 2rem);
   padding-top: 1.75rem;
   border-top: 1px solid var(--hairline);
+  transition: border-color 1.5s ease;
+}
+
+/* The column has a definite width and stretches to the row's height. Deriving
+   width from height instead (aspect-ratio, or width:auto on the SVG) either
+   inflates the row or resolves to zero and lets the graphic sit on the text.
+   The SVG's default preserveAspectRatio keeps the globe round inside the box. */
+.globe {
+  align-self: stretch;
+  flex-shrink: 0;
+  width: clamp(3.5rem, 7vw, 5rem);
+  color: color-mix(in srgb, var(--fg) 45%, transparent);
+}
+.globe svg { width: 100%; height: 100%; display: block; }
+
+
+.diagnostics {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  /* start, or the rows spread apart to fill whatever height the row becomes. */
+  align-content: start;
+  gap: 0.3rem 1.5rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* No room for it beside the rows on a phone. */
+@media (max-width: 30rem) {
+  .globe { display: none; }
 }
 .diagnostics dt {
   font-weight: 600;
@@ -393,6 +577,68 @@ button { cursor: pointer; font-family: inherit; }
   margin: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+/* ---- Modal: same fixed dark surface as the login card ---- */
+
+#modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+}
+
+.modal-card {
+  width: min(30rem, 100%);
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 1.75rem;
+  border-radius: 12px;
+  background: #14141f;
+  color: #f5f5f5;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+.modal-card p {
+  margin: 0 0 0.85rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: rgba(245, 245, 245, 0.75);
+}
+.modal-card p:last-child { margin-bottom: 0; }
+
+.modal-card .about-credit {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.8125rem;
+  color: rgba(245, 245, 245, 0.6);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.modal-head h2 { margin: 0; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; }
+
+.modal-close {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(245, 245, 245, 0.7);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.modal-close:hover { background: rgba(255, 255, 255, 0.09); color: #f5f5f5; }
+.modal-close:focus-visible { outline: 2px solid #f5f5f5; outline-offset: 2px; }
 
 /* ---- Overlay / login: fixed dark panel on a scrim, independent of the palette ---- */
 
@@ -430,6 +676,16 @@ button { cursor: pointer; font-family: inherit; }
 .login-card p { margin: 0; font-size: 0.875rem; line-height: 1.55; color: rgba(245, 245, 245, 0.75); }
 /* After the general p rule, or the shared colour would win. */
 .login-card .fineprint { font-size: 0.8125rem; color: rgba(245, 245, 245, 0.55); }
+/* Full strength against the muted fine print, so the link is obviously a link. */
+.text-link {
+  color: #f5f5f5;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(245, 245, 245, 0.5);
+  transition: text-decoration-color 0.2s ease;
+}
+.text-link:hover { text-decoration-color: currentColor; }
+.text-link:focus-visible { outline: 2px solid #f5f5f5; outline-offset: 2px; border-radius: 2px; }
 .login-card .detected strong { color: var(--accent); font-weight: 700; }
 .login-card button {
   align-self: flex-start;
@@ -450,4 +706,7 @@ button { cursor: pointer; font-family: inherit; }
   /* Without a transition the fade class would just blank the content for the
      swap delay, so keep it visible and let the change happen instantly. */
   .is-fading { opacity: 1 !important; }
+  .now-bar.is-busy .transport-main,
+  .now-bar.is-busy .track-empty,
+  .context-status { animation: none; }
 }

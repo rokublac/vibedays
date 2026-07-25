@@ -1,4 +1,4 @@
-/** Every query is anchored on the genre; the app is a lofi player. */
+/** Fallback anchor when no genre is supplied. */
 export const ANCHOR = 'lofi'
 
 /**
@@ -7,13 +7,45 @@ export const ANCHOR = 'lofi'
  * specific query often matches nothing on Spotify, so the caller walks down
  * this ladder until a rung returns enough playlists.
  */
-export function buildQueryLadder(terms: string[]): string[] {
+export function buildQueryLadder(terms: string[], anchor: string = ANCHOR): string[] {
+  const base = (anchor && anchor.trim()) || ANCHOR
   const kept = terms.filter((t) => t && t.trim())
   const ladder: string[] = []
+
+  // Drop whole bands from the end: season, then temperature, cloud, rain.
   for (let n = kept.length; n > 0; n--) {
-    ladder.push(`${ANCHOR} ${kept.slice(0, n).join(' ')}`)
+    ladder.push(dedupeWords(`${base} ${kept.slice(0, n).join(' ')}`))
   }
+
+  // Then shorten the phase itself, word by word. Without this there is a cliff
+  // between "deep house evening chill unwind" and "deep house": genres whose
+  // playlists are not named after moods fail every mood rung at once and land
+  // on generic results. "deep house evening" is the rung that catches them.
+  const phaseWords = (kept[0] ?? '').split(/\s+/).filter(Boolean)
+  for (let w = phaseWords.length - 1; w > 0; w--) {
+    ladder.push(dedupeWords(`${base} ${phaseWords.slice(0, w).join(' ')}`))
+  }
+
   // Bare anchor as the last resort, so there is always something to search.
-  ladder.push(ANCHOR)
-  return ladder
+  ladder.push(dedupeWords(base))
+  return [...new Set(ladder)]
+}
+
+/**
+ * Anchors and phase terms overlap: Ambient ("ambient meditation spa") on a late
+ * night ("sleep ambient dreamy") would otherwise search for "ambient" twice.
+ * Repeats add nothing to a text match and make the query look broken.
+ */
+export function dedupeWords(query: string): string {
+  const seen = new Set<string>()
+  return query
+    .split(/\s+/)
+    .filter((word) => {
+      if (!word) return false
+      const key = word.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .join(' ')
 }

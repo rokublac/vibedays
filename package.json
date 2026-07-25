@@ -1,5 +1,5 @@
 {
-  "name": "lofi-weather-player",
+  "name": "vibedays",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -16,7 +16,7 @@
     "vitest": "^2.0.0",
     "jsdom": "^24.1.0"
   },
-  "description": "A lofi player that follows your local sun and weather",
+  "description": "Music that fits your day, matched to your local sun and weather",
   "license": "MIT",
   "keywords": [
     "lofi",

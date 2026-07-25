@@ -3,16 +3,45 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lofi Weather Player</title>
+
+    <title>vibedays - music for your vibe</title>
+    <meta name="description" content="vibedays plays music that fits your day. It checks the sun and the weather where you are, then finds a Spotify playlist to match and swaps it as the day goes on." />
+    <meta name="author" content="RB" />
+    <link rel="canonical" href="https://vibedays.pages.dev/" />
+
+    <!-- Matches the darkest gradient, so mobile browser chrome blends in. -->
+    <meta name="theme-color" content="#05050c" />
+    <meta name="color-scheme" content="dark light" />
+
+    <!-- Files live in public/ and are served from the site root. -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Uncomment each as you add the file; a missing one is a 404 on every load.
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    -->
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Vibedays" />
+    <meta property="og:title" content="vibedays - music for your vibe" />
+    <meta property="og:description" content="Music that fits your day. It reads the sun and the weather where you are, then finds a playlist to match." />
+    <meta property="og:url" content="https://vibedays.pages.dev/" />
+    <meta property="og:image" content="https://vibedays.pages.dev/og-image.png" />
+    <meta property="og:image:alt" content="Vibedays, a player that matches music to your local weather and time of day." />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="vibedays - music for your vibe" />
+    <meta name="twitter:description" content="Music that fits your day. It reads the sun and the weather where you are, then finds a playlist to match." />
+    <meta name="twitter:image" content="https://vibedays.pages.dev/og-image.png" />
   </head>
   <body>
     <div id="backdrop" data-particles="motes"></div>
     <main id="app">
       <section id="controls"></section>
-      <section id="diagnostics"></section>
       <section id="player"></section>
+      <section id="diagnostics"></section>
     </main>
     <div id="overlay" hidden></div>
+    <div id="modal" hidden></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

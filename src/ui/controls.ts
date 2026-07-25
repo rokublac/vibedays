@@ -18,7 +18,10 @@ export function buildControls(
   root.innerHTML = `
     <div class="controls-head">
       <span class="readout-conditions"></span>
-      <div id="account-slot"></div>
+      <div class="head-actions">
+        <div id="genre-slot"></div>
+        <div id="account-slot"></div>
+      </div>
     </div>
     <p id="readout">
       <span class="readout-mood"></span>

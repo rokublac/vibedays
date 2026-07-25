@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { buildAccount } from './account'
 import type { SpotifyProfile } from '../spotify/profile-api'
 
-const cb = () => ({ onSignIn: vi.fn(), onSignOut: vi.fn() })
+const cb = () => ({ onSignIn: vi.fn(), onSignOut: vi.fn(), onAbout: vi.fn() })
 const PROFILE: SpotifyProfile = {
   id: 'rokublac', displayName: 'Roku', avatarUrl: 'a.jpg', product: 'premium',
 }
@@ -93,6 +93,25 @@ describe('signed in', () => {
     root.querySelector<HTMLButtonElement>('#account-chip')!.click()
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     expect(root.querySelector<HTMLDivElement>('#account-menu')!.hidden).toBe(true)
+  })
+
+  it('opens About from the menu and closes the menu behind it', () => {
+    const { root, ui, callbacks } = mount()
+    ui.update(PROFILE)
+    root.querySelector<HTMLButtonElement>('#account-chip')!.click()
+    root.querySelector<HTMLButtonElement>('#about')!.click()
+    expect(callbacks.onAbout).toHaveBeenCalledTimes(1)
+    expect(root.querySelector<HTMLDivElement>('#account-menu')!.hidden).toBe(true)
+  })
+
+  it('is a menu of items again, so the roles are valid', () => {
+    // It held a paragraph while About was inline, which role="menu" disallows.
+    const { root } = mount()
+    expect(root.querySelector('#account-menu')!.getAttribute('role')).toBe('menu')
+    for (const id of ['#about', '#sign-out']) {
+      expect(root.querySelector(id)!.getAttribute('role')).toBe('menuitem')
+    }
+    expect(root.querySelector('.account-about')).toBeNull()
   })
 
   it('closes the menu when the user signs out and the chip disappears', () => {

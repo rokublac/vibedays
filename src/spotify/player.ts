@@ -99,9 +99,16 @@ export interface PlayerHandle {
   previous(): void
 }
 
+/**
+ * 'account' means the Spotify plan cannot stream (free tier). It is NOT a bad
+ * token, so it must not be treated like one: logging the user out on account
+ * failure just loops them back to the login screen forever.
+ */
+export type PlayerFailure = 'auth' | 'account' | 'init'
+
 export interface PlayerCallbacks {
   onState(track: TrackInfo | null, paused: boolean): void
-  onAuthError(message: string): void
+  onFatal(kind: PlayerFailure, message: string): void
 }
 
 interface SpotifyPlayer {
@@ -134,15 +141,18 @@ export function initPlayer(
   return new Promise((resolve, reject) => {
     window.onSpotifyWebPlaybackSDKReady = () => {
       const player = new window.Spotify!.Player({
-        name: 'HopeBridge Lofi',
+        name: 'Vibedays',
         getOAuthToken: (cb) => {
           getToken().then((t) => cb(t ?? ''))
         },
         volume: VOLUME,
       })
 
+      let settled = false
+
       player.addListener('ready', (payload) => {
         const { device_id } = payload as { device_id: string }
+        settled = true
         resolve({
           deviceId: device_id,
           activate: () => player.activateElement(),
@@ -158,11 +168,19 @@ export function initPlayer(
         callbacks.onState(trackInfo(state), state?.paused ?? true)
       })
 
-      const authErr = (payload: unknown) =>
-        callbacks.onAuthError((payload as { message: string }).message)
-      player.addListener('authentication_error', authErr)
-      player.addListener('account_error', authErr)
-      player.addListener('initialization_error', authErr)
+      // 'ready' never fires after a fatal error, so without settling here the
+      // promise would hang forever and every later ensurePlayer() would await it.
+      const fail = (kind: PlayerFailure) => (payload: unknown) => {
+        const message = (payload as { message?: string })?.message ?? ''
+        callbacks.onFatal(kind, message)
+        if (!settled) {
+          settled = true
+          reject(new Error(`${kind}: ${message}`))
+        }
+      }
+      player.addListener('authentication_error', fail('auth'))
+      player.addListener('account_error', fail('account'))
+      player.addListener('initialization_error', fail('init'))
 
       player.connect()
     }

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
-import { buildPlayer } from './player'
+import { buildPlayer, IDLE_PROMPT, BUSY_PROMPT, SWITCHING_STATUS } from './player'
 import type { TrackInfo } from '../spotify/player'
 
-const cb = () => ({ onToggle: vi.fn(), onNext: vi.fn(), onPrev: vi.fn() })
+const cb = () => ({ onToggle: vi.fn(), onNext: vi.fn(), onPrev: vi.fn(), onReroll: vi.fn() })
 // Run the fade swap synchronously so assertions see the settled DOM.
 const NOW = { schedule: (fn: () => void) => fn() }
 
@@ -96,7 +96,7 @@ describe('buildPlayer', () => {
     const empty = root.querySelector<HTMLSpanElement>('.track-empty')!
     // Rendered on first paint, before any state callback has fired.
     expect(empty.hidden).toBe(false)
-    expect(empty.textContent).toBe('Press play to start')
+    expect(empty.textContent).toBe(IDLE_PROMPT)
   })
 
   it('swaps the prompt for the track, and back again', () => {
@@ -141,12 +141,20 @@ describe('buildPlayer', () => {
     expect(link.hasAttribute('aria-disabled')).toBe(false)
   })
 
+  it('exposes the full playlist name on hover, since it truncates', () => {
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    const long = 'Winter chill | cozy lofi vibes | lofi winter | relaxing chill beats | winter lofi'
+    player.update({ ...TRACK, context: { label: long, url: null } }, false)
+    expect(root.querySelector<HTMLElement>('.context-name')!.title).toBe(long)
+  })
+
   it('shows which playlist playback is coming from', () => {
     const root = document.createElement('div')
     const player = buildPlayer(root, cb(), NOW)
     player.update(TRACK, false)
     const line = root.querySelector<HTMLAnchorElement>('#playing-from')!
-    expect(line.hidden).toBe(false)
+    expect(root.querySelector<HTMLDivElement>('.context-row')!.hidden).toBe(false)
     expect(root.querySelector('.context-name')!.textContent).toBe('Late night lofi')
     expect(line.getAttribute('href')).toBe('https://open.spotify.com/playlist/p1')
   })
@@ -155,7 +163,149 @@ describe('buildPlayer', () => {
     const root = document.createElement('div')
     const player = buildPlayer(root, cb(), NOW)
     player.update({ ...TRACK, context: null }, false)
+    expect(root.querySelector<HTMLDivElement>('.context-row')!.hidden).toBe(true)
+  })
+
+  it('offers a way to switch playlist without waiting for the vibe to change', () => {
+    const root = document.createElement('div')
+    const callbacks = cb()
+    const player = buildPlayer(root, callbacks, NOW)
+    player.update(TRACK, false)
+    root.querySelector<HTMLButtonElement>('#reroll')!.click()
+    expect(callbacks.onReroll).toHaveBeenCalledTimes(1)
+  })
+
+  it('says it is working while a search is in flight', () => {
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    const empty = root.querySelector<HTMLSpanElement>('.track-empty')!
+    const bar = root.querySelector<HTMLDivElement>('.now-bar')!
+
+    player.setBusy(true)
+    expect(empty.textContent).toBe(BUSY_PROMPT)
+    expect(bar.classList.contains('is-busy')).toBe(true)
+  })
+
+  it('returns to the idle prompt when the work finishes', () => {
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    const empty = root.querySelector<HTMLSpanElement>('.track-empty')!
+    const bar = root.querySelector<HTMLDivElement>('.now-bar')!
+
+    player.setBusy(true)
+    player.setBusy(false)
+    expect(empty.textContent).toBe(IDLE_PROMPT)
+    expect(bar.classList.contains('is-busy')).toBe(false)
+  })
+
+  it('replaces the playlist name with a status while switching', () => {
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    player.update(TRACK, false)
+    player.setBusy(true)
+
+    const status = root.querySelector<HTMLSpanElement>('.context-status')!
+    expect(status.hidden).toBe(false)
+    expect(status.textContent).toBe(SWITCHING_STATUS)
+    // The old playlist name is not left sitting there claiming to be current.
     expect(root.querySelector<HTMLAnchorElement>('#playing-from')!.hidden).toBe(true)
+    expect(root.querySelector<HTMLDivElement>('.context-row')!.hidden).toBe(false)
+  })
+
+  it('puts the playlist name back when the switch lands', () => {
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    player.update(TRACK, false)
+    player.setBusy(true)
+    player.update({ ...TRACK, name: 'Another', context: { label: 'New list', url: null } }, false)
+    player.setBusy(false)
+
+    expect(root.querySelector<HTMLSpanElement>('.context-status')!.hidden).toBe(true)
+    expect(root.querySelector<HTMLAnchorElement>('#playing-from')!.hidden).toBe(false)
+    expect(root.querySelector('.context-name')!.textContent).toBe('New list')
+  })
+
+  it('does not show the status before anything has played', () => {
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    player.setBusy(true)
+    // The empty prompt already says it; the row would be an empty second voice.
+    expect(root.querySelector<HTMLSpanElement>('.context-status')!.hidden).toBe(true)
+    expect(root.querySelector<HTMLSpanElement>('.track-empty')!.textContent).toBe(BUSY_PROMPT)
+  })
+
+  it('hides the switch button while a switch is running', () => {
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    player.update(TRACK, false)
+    player.setAlternatives(6)
+    const btn = root.querySelector<HTMLButtonElement>('#reroll')!
+    expect(btn.hidden).toBe(false)
+
+    player.setBusy(true)
+    // Greyed out next to "Finding a playlist…" was the same message twice.
+    expect(btn.hidden).toBe(true)
+    expect(btn.disabled).toBe(true)
+
+    player.setBusy(false)
+    expect(btn.hidden).toBe(false)
+    expect(btn.disabled).toBe(false)
+  })
+
+  it('stays visible but disabled when there is simply nothing to switch to', () => {
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    player.update(TRACK, false)
+    player.setAlternatives(1)
+    const btn = root.querySelector<HTMLButtonElement>('#reroll')!
+    expect(btn.hidden).toBe(false)
+    expect(btn.disabled).toBe(true)
+  })
+
+  it('disables the switch button when there is nothing else to switch to', () => {
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    player.update(TRACK, false)
+    const btn = root.querySelector<HTMLButtonElement>('#reroll')!
+
+    player.setAlternatives(1)
+    expect(btn.disabled).toBe(true)
+    expect(btn.title).toContain('No other playlists')
+
+    player.setAlternatives(0)
+    expect(btn.disabled).toBe(true)
+  })
+
+  it('enables it and says how many alternatives there are', () => {
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    player.update(TRACK, false)
+    const btn = root.querySelector<HTMLButtonElement>('#reroll')!
+
+    player.setAlternatives(7)
+    expect(btn.disabled).toBe(false)
+    expect(btn.title).toContain('6 other playlists')
+
+    player.setAlternatives(2)
+    expect(btn.title).toContain('1 other playlist')
+    expect(btn.title).not.toContain('playlists')
+  })
+
+  it('re-enables when a later condition has a bigger pool', () => {
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    player.update(TRACK, false)
+    const btn = root.querySelector<HTMLButtonElement>('#reroll')!
+    player.setAlternatives(1)
+    player.setAlternatives(5)
+    expect(btn.disabled).toBe(false)
+  })
+
+  it('hides the switch button along with the source row when nothing plays', () => {
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    player.update(null, true)
+    expect(root.querySelector<HTMLButtonElement>('#reroll')!.closest('[hidden]')).not.toBeNull()
   })
 
   it('keeps the source label but drops the link when there is no url', () => {
@@ -163,7 +313,7 @@ describe('buildPlayer', () => {
     const player = buildPlayer(root, cb(), NOW)
     player.update({ ...TRACK, context: { label: 'Recently played', url: null } }, false)
     const line = root.querySelector<HTMLAnchorElement>('#playing-from')!
-    expect(line.hidden).toBe(false)
+    expect(root.querySelector<HTMLDivElement>('.context-row')!.hidden).toBe(false)
     expect(line.hasAttribute('href')).toBe(false)
     expect(line.getAttribute('aria-disabled')).toBe('true')
   })
@@ -173,7 +323,7 @@ describe('buildPlayer', () => {
     const player = buildPlayer(root, cb(), NOW)
     player.update(TRACK, false)
     player.update(null, true)
-    expect(root.querySelector<HTMLAnchorElement>('#playing-from')!.hidden).toBe(true)
+    expect(root.querySelector<HTMLDivElement>('.context-row')!.hidden).toBe(true)
   })
 
   it('does not re-fade the bar on a pause or resume of the same track', () => {
@@ -197,13 +347,58 @@ describe('buildPlayer', () => {
     expect(root.querySelector('.track-name')!.textContent).toBe('Another')
   })
 
-  it('fades when only the playlist changes', () => {
+  it('writes a late-arriving playlist name in place, without re-fading the card', () => {
     const root = document.createElement('div')
     const schedule = vi.fn((fn: () => void) => fn())
     const player = buildPlayer(root, cb(), { schedule })
     player.update(TRACK, false)
+    // Same track, context filled in afterwards: the SDK often reports it late,
+    // and fading the whole card again for a subtitle read as a flicker.
     player.update({ ...TRACK, context: { label: 'Morning coffee', url: null } }, false)
-    expect(schedule).toHaveBeenCalledTimes(1)
+    expect(schedule).not.toHaveBeenCalled()
     expect(root.querySelector('.context-name')!.textContent).toBe('Morning coffee')
+  })
+
+  it('does not flash the empty bar while switching playlists', () => {
+    const root = document.createElement('div')
+    const schedule = vi.fn((fn: () => void) => fn())
+    const player = buildPlayer(root, cb(), { schedule })
+    player.update(TRACK, false)
+
+    // What a switch actually looks like from the SDK: a momentary empty state
+    // between the old track and the new one.
+    player.setBusy(true)
+    player.update(null, true)
+
+    const bar = root.querySelector<HTMLDivElement>('.now-bar')!
+    expect(bar.classList.contains('is-empty')).toBe(false)
+    expect(root.querySelector<HTMLAnchorElement>('#now-playing')!.hidden).toBe(false)
+
+    const next = { ...TRACK, name: 'Another', url: 'https://open.spotify.com/track/zzz' }
+    player.update(next, false)
+    player.setBusy(false)
+    expect(root.querySelector('.track-name')!.textContent).toBe('Another')
+  })
+
+  it('still collapses to empty if the switch really ended with nothing playing', () => {
+    const root = document.createElement('div')
+    const schedule = vi.fn((fn: () => void) => fn())
+    const player = buildPlayer(root, cb(), { schedule })
+    player.update(TRACK, false)
+
+    player.setBusy(true)
+    player.update(null, true)
+    player.setBusy(false) // nothing arrived, so the held empty state applies now
+
+    expect(root.querySelector<HTMLDivElement>('.now-bar')!.classList.contains('is-empty')).toBe(true)
+    expect(root.querySelector<HTMLAnchorElement>('#now-playing')!.hidden).toBe(true)
+  })
+
+  it('renders an empty state immediately when not mid-switch', () => {
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    player.update(TRACK, false)
+    player.update(null, true)
+    expect(root.querySelector<HTMLDivElement>('.now-bar')!.classList.contains('is-empty')).toBe(true)
   })
 })

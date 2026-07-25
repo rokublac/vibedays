@@ -47,11 +47,13 @@ export async function searchPlaylists(
   query: string,
   fetchFn: typeof fetch = fetch,
   limit = MAX_SEARCH_LIMIT,
+  offset = 0,
 ): Promise<SpotifyPlaylist[]> {
   const capped = Math.max(1, Math.min(MAX_SEARCH_LIMIT, limit))
+  const from = Math.max(0, Math.floor(offset))
   const url =
     'https://api.spotify.com/v1/search' +
-    `?q=${encodeURIComponent(query)}&type=playlist&limit=${capped}`
+    `?q=${encodeURIComponent(query)}&type=playlist&limit=${capped}&offset=${from}`
   const res = await fetchFn(url, { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) {
     // Spotify explains the rejection in the body; without it a 400 is a guessing game.

@@ -2,7 +2,8 @@ import './style.css'
 import type { Conditions, Coords } from './types'
 import { resolveConditions } from './conditions/provider'
 import { getBrowserLocation, reverseGeocode } from './conditions/location'
-import { fetchWeatherDetail, type WeatherDetail } from './conditions/weather'
+import { fetchWeatherDetail } from './conditions/weather'
+import { createWeatherStore } from './conditions/weather-store'
 import { match } from './matcher/matcher'
 import { signature } from './conditions/descriptors'
 import { applyPalette } from './ui/backdrop'
@@ -10,14 +11,17 @@ import { buildControls, formatConditions } from './ui/controls'
 import { buildDiagnostics, type Diagnostics } from './ui/diagnostics'
 import { buildPlayer } from './ui/player'
 import { buildAccount } from './ui/account'
-import { buildLogin } from './ui/login'
+import { buildGenrePicker } from './ui/genre'
+import { buildAbout } from './ui/about'
+import { loadGenre, saveGenre, type Genre } from './config/genres'
+import { buildLogin, buildPremiumNotice } from './ui/login'
 import { fetchProfile, type SpotifyProfile } from './spotify/profile-api'
 import { handleRedirect, isLoggedIn, beginLogin, getAccessToken, logout } from './spotify/auth'
 import { searchPlaylists } from './spotify/search-api'
 import { createAutoPlaylists } from './spotify/auto-playlist'
 import { initPlayer, type PlayerHandle } from './spotify/player'
 import { fadeVolume, VOLUME } from './spotify/fade'
-import { playPlaylist } from './spotify/playback-api'
+import { playPlaylist, fetchTrackCount, randomStart, setShuffle } from './spotify/playback-api'
 import { SPOTIFY_CLIENT_ID } from './config/spotify'
 import { debug } from './debug'
 
@@ -44,40 +48,43 @@ async function boot() {
   let source: Diagnostics['source'] = 'none'
   try { coords = await getBrowserLocation(); source = 'geolocation' } catch { coords = null }
 
-  let weatherDetail: WeatherDetail | null = null
   let place: string | null = null
 
-  async function fetchWeatherAndPlace(): Promise<void> {
-    weatherDetail = null
-    place = null
-    if (coords) {
-      try { weatherDetail = await fetchWeatherDetail(coords) } catch { weatherDetail = null }
-      try { place = await reverseGeocode(coords) } catch { place = null }
-    }
+  // Holds the last good reading so a refresh in flight never leaves the app
+  // weatherless; see weather-store.ts for why that mattered.
+  const weather = createWeatherStore(
+    () => fetchWeatherDetail(coords!),
+    (e) => debug('weather refresh failed, keeping previous', e),
+  )
+  const refreshWeather = () => (coords ? weather.refresh() : Promise.resolve())
+
+  /** The coordinates never change after boot, so neither can the place name. */
+  async function fetchPlaceOnce(): Promise<void> {
+    if (!coords || place !== null) return
+    try { place = await reverseGeocode(coords) } catch { place = null }
   }
 
   // Recompute sun/season locally (no network) each tick, reusing cached weather.
   function recompute(): Conditions {
-    return resolveConditions({ now: () => new Date(), coords, weather: weatherDetail })
+    return resolveConditions({ now: () => new Date(), coords, weather: weather.current() })
   }
 
-  await fetchWeatherAndPlace()
+  await refreshWeather()
+  void fetchPlaceOnce() // display only, so it need not hold up the first render
   let base: Conditions = recompute()
-  let lastQuery: string | null = null
+
+  let genre: Genre = loadGenre()
 
   // Playlists come from searching the public Spotify catalogue per mood; the
   // choice is pinned for this session so moods return to the same playlist.
   const autoPlaylists = createAutoPlaylists({
-    search: async (query) => {
+    genre: () => genre,
+    search: async (query, offset) => {
       const token = await getAccessToken()
       if (!token) return []
-      return searchPlaylists(token, query)
+      return searchPlaylists(token, query, fetch, undefined, offset)
     },
-    onQuery: (query, count) => {
-      // The rung that satisfied the search is worth surfacing in diagnostics.
-      if (count >= 3 || lastQuery === null) lastQuery = query
-      debug('search rung', { query, count })
-    },
+    onQuery: (query, count) => debug('search rung', { query, count }),
   })
 
   let player: PlayerHandle | null = null
@@ -87,13 +94,23 @@ async function boot() {
   let started = false
   let autoplayWanted = false
   // The mood whose playlist is playing, and the one being switched to.
-  // Signature of the conditions whose playlist is playing / being switched to.
+  // Genre plus conditions: switching genre must count as a change, or the
+  // render tick would see the same key and never start the new music.
+  const keyFor = (c: Conditions) => `${genre.id}|${signature(c)}`
   let playingKey: string | null = null
   let pendingKey: string | null = null
 
   function showLogin() {
     overlay.hidden = false
     buildLogin(overlay, { summary: currentSummary(), onLogin: () => beginLogin() })
+  }
+
+  function showPremiumRequired() {
+    overlay.hidden = false
+    buildPremiumNotice(overlay, {
+      displayName: profile?.displayName ?? null,
+      onSignOut: () => { logout(); window.location.reload() },
+    })
   }
 
   function currentSummary(): string {
@@ -109,10 +126,13 @@ async function boot() {
         debug('ensurePlayer: initialising SDK')
         player = await initPlayer(getAccessToken, {
           onState: (track, paused) => playerUI.update(track, paused),
-          onAuthError: (msg) => {
-            console.error('Spotify player error:', msg)
-            logout()
+          onFatal: (kind, msg) => {
+            console.error(`Spotify player ${kind} error:`, msg)
             started = false
+            // A free plan is not a bad token. Clearing it would send the user
+            // back to the login screen, where signing in again changes nothing.
+            if (kind === 'account') { showPremiumRequired(); return }
+            logout()
             profile = null
             account.update(null)
             showLogin()
@@ -120,6 +140,9 @@ async function boot() {
         })
       } catch (e) {
         console.error('Spotify player failed to load', e)
+        // Allow a later attempt (e.g. after switching to a Premium account)
+        // instead of caching a rejected promise forever.
+        playerInit = null
         return
       }
       debug('ensurePlayer: ready', { deviceId: player?.deviceId })
@@ -144,10 +167,11 @@ async function boot() {
    * rather than being silently treated as done.
    */
   async function playConditions(c: Conditions): Promise<void> {
-    const key = signature(c)
+    const key = keyFor(c)
     debug('playConditions', { key, pendingKey, playingKey, started, hasPlayer: !!player })
     if (pendingKey === key) return
     pendingKey = key
+    setBusy(1)
     try {
       const playlist = await autoPlaylists.resolve(c)
       debug('resolved playlist', playlist)
@@ -157,9 +181,36 @@ async function boot() {
       }
       await startPlaylist(playlist.id)
       if (currentPlaylistId === playlist.id) playingKey = key
+      playerUI.setAlternatives(autoPlaylists.poolSize(c))
       updateDiagnostics()
     } finally {
+      setBusy(-1)
       if (pendingKey === key) pendingKey = null
+    }
+  }
+
+  // Counted rather than a flag: a condition change and a manual switch can
+  // overlap, and the first one to finish must not clear the other's indicator.
+  let busyCount = 0
+  function setBusy(delta: number) {
+    busyCount = Math.max(0, busyCount + delta)
+    playerUI.setBusy(busyCount > 0)
+    genrePicker.setBusy(busyCount > 0)
+  }
+
+  /** Swap to another playlist for the conditions already playing. */
+  async function rerollPlaylist(): Promise<void> {
+    if (!player) return
+    setBusy(1)
+    try {
+      const playlist = await autoPlaylists.reroll(base)
+      debug('reroll', playlist)
+      if (playlist) await startPlaylist(playlist.id)
+      playerUI.setAlternatives(autoPlaylists.poolSize(base))
+    } catch (e) {
+      console.error('could not switch playlist', e)
+    } finally {
+      setBusy(-1)
     }
   }
 
@@ -168,7 +219,7 @@ async function boot() {
     applyPalette(backdrop, result.palette)
     controls.update(base)
     // Once playing, any change in conditions resolves a playlist and switches.
-    if (started && player && signature(base) !== playingKey) void playConditions(base)
+    if (started && player && keyFor(base) !== playingKey) void playConditions(base)
     updateDiagnostics()
   }
 
@@ -195,8 +246,15 @@ async function boot() {
       if (!isCurrent()) return
 
       await p.setVolume(0)
-      await playPlaylist(token, p.deviceId, playlistId)
-      debug('startPlaylist: play request accepted', playlistId)
+
+      // Start somewhere inside the playlist rather than always on track one,
+      // then hand the rest of the queue to Spotify's own shuffle.
+      const total = await fetchTrackCount(token, playlistId)
+      const position = randomStart(total, Math.random)
+      await playPlaylist(token, p.deviceId, playlistId, fetch, position)
+      debug('startPlaylist: play request accepted', { playlistId, position, total })
+      void setShuffle(token, p.deviceId, true).then((ok) => debug('shuffle set', ok))
+
       started = true
       currentPlaylistId = playlistId
 
@@ -220,12 +278,41 @@ async function boot() {
     },
     onNext: () => player?.next(),
     onPrev: () => player?.previous(),
+    onReroll: () => void rerollPlaylist(),
   })
 
   const controls = buildControls(document.getElementById('controls')!)
 
+  const genrePicker = buildGenrePicker(document.getElementById('genre-slot')!, {
+    onSelect: (next) => {
+      if (next.id === genre.id) return
+      genre = next
+      saveGenre(next.id)
+      genrePicker.update(genre)
+      // Only chase it if something is already playing; otherwise the choice
+      // simply applies whenever the user presses play.
+      if (started) void playConditions(base)
+    },
+  })
+  genrePicker.update(genre)
+
+  const modal = document.getElementById('modal')!
+  const closeModal = () => { modal.hidden = true; modal.innerHTML = '' }
+  // Dismiss on the scrim, not the card.
+  modal.addEventListener('click', (e) => { if (e.target === modal) closeModal() })
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !modal.hidden) closeModal()
+  })
+
+  function showAbout() {
+    buildAbout(modal, { onClose: closeModal })
+    modal.hidden = false
+    modal.querySelector<HTMLButtonElement>('#about-close')!.focus()
+  }
+
   const account = buildAccount(document.getElementById('account-slot')!, {
     onSignIn: () => beginLogin(),
+    onAbout: () => showAbout(),
     onSignOut: () => {
       logout()
       // Full reload is the honest reset: it drops the SDK device, the pinned
@@ -236,9 +323,9 @@ async function boot() {
 
   let profile: SpotifyProfile | null = null
 
-  async function refreshProfile(): Promise<void> {
+  async function refreshProfile(): Promise<SpotifyProfile | null> {
     const token = await getAccessToken()
-    if (!token) { profile = null; account.update(null); return }
+    if (!token) { profile = null; account.update(null); return null }
     try {
       profile = await fetchProfile(token)
     } catch (e) {
@@ -246,9 +333,7 @@ async function boot() {
       profile = null
     }
     account.update(profile)
-    if (profile && profile.product !== 'premium') {
-      console.warn(`Spotify account is "${profile.product}" — playback needs premium`)
-    }
+    return profile
   }
 
   const diagnostics = buildDiagnostics(document.getElementById('diagnostics')!)
@@ -258,26 +343,30 @@ async function boot() {
       now: new Date(),
       phase: base.phase,
       season: base.season,
-      sunrise: weatherDetail?.sun?.sunrise ?? null,
-      sunset: weatherDetail?.sun?.sunset ?? null,
-      cloudCover: weatherDetail?.cloudCover ?? null,
-      precipitationMm: weatherDetail?.precipitationMm ?? null,
-      query: lastQuery,
+      sunrise: weather.current()?.sun?.sunrise ?? null,
+      sunset: weather.current()?.sun?.sunset ?? null,
+      cloudCover: weather.current()?.cloudCover ?? null,
+      precipitationMm: weather.current()?.precipitationMm ?? null,
       source,
       coords,
       place,
-      weatherCode: weatherDetail?.code ?? null,
-      weatherKind: weatherDetail?.kind ?? null,
-      temperatureC: weatherDetail?.temperatureC ?? null,
+      weatherCode: weather.current()?.code ?? null,
+      weatherKind: weather.current()?.kind ?? null,
+      temperatureC: weather.current()?.temperatureC ?? null,
     })
   }
 
   render()
 
-  void refreshProfile()
-
-  if (!isLoggedIn()) showLogin()
-  else await ensurePlayerAndRender()
+  if (!isLoggedIn()) {
+    showLogin()
+  } else {
+    const me = await refreshProfile()
+    // Catch the free tier before the SDK does, so the failure is explained
+    // rather than appearing as a bounce back to the login screen.
+    if (me && me.product && me.product !== 'premium') showPremiumRequired()
+    else await ensurePlayerAndRender()
+  }
 
   // Real-time tick: recompute clock/time-of-day/season every second (local, no
   // network) so the clock ticks and the mood/playlist switch right at boundaries.
@@ -289,7 +378,8 @@ async function boot() {
   // Weather poll: refresh the actual weather fetch on a slower cadence.
   setInterval(async () => {
     if (!coords) return
-    await fetchWeatherAndPlace()
+    await refreshWeather()
+    void fetchPlaceOnce() // no-op once it has resolved
     base = recompute()
     render()
   }, WEATHER_POLL_MS)

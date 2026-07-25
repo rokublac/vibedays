@@ -4,6 +4,7 @@ import { initialsOf } from '../spotify/profile-api'
 export interface AccountCallbacks {
   onSignIn(): void
   onSignOut(): void
+  onAbout(): void
 }
 
 export interface AccountUI {
@@ -26,6 +27,7 @@ export function buildAccount(root: HTMLElement, cb: AccountCallbacks): AccountUI
       </button>
       <div id="account-menu" class="account-menu" role="menu" hidden>
         <p class="account-menu-name"></p>
+        <button id="about" class="account-menu-item" type="button" role="menuitem">About</button>
         <button id="sign-out" class="account-menu-item" type="button" role="menuitem">Sign out</button>
       </div>
     </div>`
@@ -52,6 +54,10 @@ export function buildAccount(root: HTMLElement, cb: AccountCallbacks): AccountUI
   root.querySelector('#sign-out')!.addEventListener('click', () => {
     setOpen(false)
     cb.onSignOut()
+  })
+  root.querySelector('#about')!.addEventListener('click', () => {
+    setOpen(false)
+    cb.onAbout()
   })
 
   // Dismiss like any other menu: click away or press Escape.

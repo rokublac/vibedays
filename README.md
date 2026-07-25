@@ -1,11 +1,16 @@
-# Lofi that fits your day
+# Vibedays
+
+Music that fits your day.
 
 A static web player that reads the sun and the weather where you are, then finds
-a lofi playlist on Spotify to match. When the day changes, so does the music.
+a playlist on Spotify to match. When the day changes, so does the music.
 
 At 6pm on a clear winter evening it plays something calm and unwinding. At 2am it
 plays something ambient. When it starts raining it changes again. Nobody picks
 the playlists, and there is nothing to configure beyond signing in.
+
+Pick a genre (lofi, synthwave, jazz, classical or ambient) and the whole system
+follows it.
 
 No backend, no database, no API keys. It runs entirely in the browser.
 
@@ -165,13 +170,34 @@ library; the app is small enough not to need either.
 
 ## Making it yours
 
-- **Different genre?** `ANCHOR` in `src/search/query.ts` is the word every query
-  is built around. Change it to `jazz` or `ambient` and the whole thing follows.
+- **Different genres?** `GENRES` in `src/config/genres.ts`. Each one is a label
+  and a search anchor that replaces the genre word in every query. Two rules,
+  both covered by tests: no repeated word inside an anchor, and no weather or
+  season words (the result ranker would reject its own matches).
 - **Different search terms?** `PHASE_TERMS` and the band term tables in
   `src/conditions/descriptors.ts`.
 - **Different phase timings?** `DEEP_NIGHT_HOUR` and friends in
   `src/conditions/sun.ts`.
 - **Different colours?** `src/matcher/palette.ts`, then run the tests.
+
+## Icons and social images
+
+Anything in `public/` is served from the site root, so `public/favicon.svg` is
+`/favicon.svg` in the browser. `index.html` already points at these names:
+
+| File | Size | Notes |
+| --- | --- | --- |
+| `favicon.svg` | square viewBox | committed |
+| `favicon.ico` | 32x32, ideally with a 16x16 inside | the 16 is what a browser tab actually draws |
+| `apple-touch-icon.png` | 180x180 | needs a solid background; iOS composites transparency onto black and rounds the corners itself |
+| `og-image.png` | 1200x630 | link previews, used for both Open Graph and Twitter |
+
+Missing files break nothing. Browsers fall back to a default icon and link
+previews show no image.
+
+Before deploying, update the absolute URLs in `index.html` (`og:url`,
+`og:image`, and the canonical link). They currently point at
+`vibedays.pages.dev`, and social previews cannot resolve relative URLs.
 
 ## Privacy
 
