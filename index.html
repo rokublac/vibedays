@@ -35,6 +35,13 @@
   </head>
   <body>
     <div id="backdrop" data-particles="motes"></div>
+    <!-- Shown until the first render. Geolocation and the weather call take a
+         moment on a cold load, and before this the page was simply blank. -->
+    <div id="boot" role="status">
+      <p class="boot-text">
+        loading <span class="rainbow">vibedays</span><span class="boot-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      </p>
+    </div>
     <main id="app">
       <section id="controls"></section>
       <section id="player"></section>

@@ -20,6 +20,7 @@ const rungs = (search: { mock: { calls: unknown[][] } }) =>
   search.mock.calls.filter((c) => !c[1]).length
 
 const cond = (over: Partial<Conditions> = {}): Conditions => ({
+  located: true,
   phase: 'sunset-golden',
   season: 'winter',
   weather: 'clear',

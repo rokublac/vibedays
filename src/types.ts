@@ -23,6 +23,8 @@ export interface Coords {
 }
 
 export interface Conditions {
+  /** False when geolocation was denied or unavailable. */
+  located: boolean
   phase: SunPhase
   season: Season
   weather: WeatherKind | null

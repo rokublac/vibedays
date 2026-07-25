@@ -4,7 +4,7 @@ import type { Conditions } from '../types'
 import type { SpotifyPlaylist } from '../spotify/search-api'
 
 const C = (over: Partial<Conditions> = {}): Conditions => ({
-  phase: 'deep-night', season: 'winter', weather: 'clear',
+  located: true, phase: 'deep-night', season: 'winter', weather: 'clear',
   cloud: 'clear', precip: 'none', temp: 'cold', ...over,
 })
 const pl = (name: string): SpotifyPlaylist => ({ id: name, name, owner: 'u' })

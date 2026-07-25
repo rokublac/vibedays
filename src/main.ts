@@ -28,6 +28,14 @@ import { debug } from './debug'
 const TICK_MS = 1000
 const WEATHER_POLL_MS = 10 * 60 * 1000
 
+/** Fades the boot screen out once there is something worth looking at. */
+function hideBoot(): void {
+  const boot = document.getElementById('boot')
+  if (!boot || boot.classList.contains('is-done')) return
+  boot.classList.add('is-done')
+  setTimeout(() => boot.remove(), 500)
+}
+
 async function boot() {
   const backdrop = document.getElementById('backdrop')!
   const overlay = document.getElementById('overlay')!
@@ -102,7 +110,11 @@ async function boot() {
 
   function showLogin() {
     overlay.hidden = false
-    buildLogin(overlay, { summary: currentSummary(), onLogin: () => beginLogin() })
+    buildLogin(overlay, {
+      summary: currentSummary(),
+      located: base.located,
+      onLogin: () => beginLogin(),
+    })
   }
 
   function showPremiumRequired() {
@@ -281,7 +293,26 @@ async function boot() {
     onReroll: () => void rerollPlaylist(),
   })
 
-  const controls = buildControls(document.getElementById('controls')!)
+  const controls = buildControls(document.getElementById('controls')!, {
+    onRetryLocation: () => void retryLocation(),
+  })
+
+  /**
+   * Re-asks for location. Only useful after the user has changed the site
+   * permission: a blocked prompt does not reappear on request.
+   */
+  async function retryLocation(): Promise<void> {
+    try {
+      coords = await getBrowserLocation()
+      source = 'geolocation'
+    } catch {
+      return
+    }
+    await refreshWeather()
+    void fetchPlaceOnce()
+    base = recompute()
+    render()
+  }
 
   const genrePicker = buildGenrePicker(document.getElementById('genre-slot')!, {
     onSelect: (next) => {
@@ -357,6 +388,7 @@ async function boot() {
   }
 
   render()
+  hideBoot()
 
   if (!isLoggedIn()) {
     showLogin()
@@ -385,4 +417,8 @@ async function boot() {
   }, WEATHER_POLL_MS)
 }
 
-boot().catch((e) => console.error('boot failed', e))
+// Never leave the loader up: a failed boot should show whatever rendered.
+boot().catch((e) => {
+  console.error('boot failed', e)
+  hideBoot()
+})

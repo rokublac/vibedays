@@ -107,14 +107,20 @@ export function describeTerms(c: Conditions): string[] {
     c.precip ? PRECIP_TERMS[c.precip] : null,
     c.cloud ? CLOUD_TERMS[c.cloud] : null,
     c.temp ? TEMP_TERMS[c.temp] : null,
-    c.season,
+    // Season needs latitude to know the hemisphere. Without location it would
+    // claim summer during an Australian winter, so it is left out entirely.
+    c.located ? c.season : null,
   ]
   return terms.filter((t): t is string => !!t)
 }
 
 /** Stable key for the exact combination, used to pin a playlist choice. */
 export function signature(c: Conditions): string {
-  return [c.phase, c.precip ?? '-', c.cloud ?? '-', c.temp ?? '-', c.season].join('|')
+  return [
+    c.located ? 'geo' : 'nogeo',
+    c.phase, c.precip ?? '-', c.cloud ?? '-', c.temp ?? '-',
+    c.located ? c.season : '-',
+  ].join('|')
 }
 
 export function headline(c: Conditions): string {
@@ -124,7 +130,8 @@ export function headline(c: Conditions): string {
 /** The overline above the hero: the conditions, not the phase. */
 export function conditionWords(c: Conditions): string[] {
   const words: Array<string | null> = [
-    c.cloud, c.precip === 'none' ? null : c.precip, c.temp, c.season,
+    c.cloud, c.precip === 'none' ? null : c.precip, c.temp,
+    c.located ? c.season : null,
   ]
   return words.filter((w): w is string => !!w)
 }

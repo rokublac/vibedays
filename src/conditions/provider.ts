@@ -15,6 +15,7 @@ export function resolveConditions(deps: ProviderDeps): Conditions {
   const date = deps.now()
   const w = deps.weather
   return {
+    located: !!deps.coords,
     phase: computeSunPhase(date, w?.sun ?? null),
     season: computeSeason(date, deps.coords?.latitude ?? 0),
     weather: w?.kind ?? null,

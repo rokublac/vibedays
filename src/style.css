@@ -56,6 +56,59 @@ body {
 #backdrop[data-particles='snow']::after { background-size: 22px 22px; opacity: 0.35; }
 #backdrop[data-particles='none']::after { opacity: 0; }
 
+/* ---- Boot ---- */
+
+#boot {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 20;
+  /* Its own soft black, not the palette variables: the loader runs before a
+     phase is resolved, and anything translucent let the app's diagnostics rule
+     show through as a line straight across the screen. */
+  background: linear-gradient(180deg, #15151d 0%, #08080c 100%);
+  /* Fades out rather than vanishing, so the hero does not snap into place. */
+  transition: opacity 0.4s ease;
+}
+#boot.is-done { opacity: 0; pointer-events: none; }
+
+/* Hidden until the loader is done, then the two cross-fade. pointer-events off
+   as well, so nothing invisible is clickable on the way in. */
+#boot:not(.is-done) ~ #app {
+  opacity: 0;
+  pointer-events: none;
+}
+#app { transition: opacity 0.4s ease; }
+
+.boot-text {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: clamp(1.25rem, 4vw, 1.75rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--fg-muted);
+}
+
+/* Three dots fading in sequence. The rainbow already moves, so this stays
+   small and slow rather than competing with it. */
+.boot-dots { display: inline-flex; align-items: center; gap: 3px; }
+.boot-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: hb-dot 1.4s ease-in-out infinite;
+}
+.boot-dots i:nth-child(2) { animation-delay: 0.18s; }
+.boot-dots i:nth-child(3) { animation-delay: 0.36s; }
+@keyframes hb-dot {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 1; }
+}
+
 /* Full-height stage: the stack is vertically centred and the gradient carries
    the rest of the screen. dvh so mobile browser chrome doesn't clip it. */
 #app {
@@ -567,6 +620,32 @@ button { cursor: pointer; font-family: inherit; }
 @media (max-width: 30rem) {
   .globe { display: none; }
 }
+/* Shown when geolocation is unavailable, both under the hero and on the login
+   card. A left rule rather than a filled box, so it reads on any gradient. */
+.callout {
+  padding: 0.75rem 0 0.75rem 0.9rem;
+  border-left: 2px solid var(--fg);
+  max-width: 34rem;
+}
+.callout-title { margin: 0 0 0.3rem; font-size: 0.9375rem; font-weight: 700; }
+.callout-body { margin: 0; font-size: 0.875rem; line-height: 1.55; color: var(--fg-muted); }
+
+/* On the fixed dark login card the palette tokens do not apply. */
+.login-card .callout { border-left-color: rgba(245, 245, 245, 0.5); }
+.login-card .callout-title { color: #f5f5f5; }
+.login-card .callout-body { color: rgba(245, 245, 245, 0.7); }
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.link-button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
 .diagnostics dt {
   font-weight: 600;
   letter-spacing: 0.1em;
@@ -667,11 +746,36 @@ button { cursor: pointer; font-family: inherit; }
   gap: 1rem;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
 }
+/* Animated rainbow wordmark. Every stop is measured at 6.2:1 or better on the
+   #14141f card, so the text stays AA at any point in the sweep. */
+.rainbow {
+  background-image: linear-gradient(
+    90deg,
+    #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #b892ff, #ff6b6b
+  );
+  background-size: 200% auto;
+  animation: hb-rainbow 6s linear infinite;
+}
+/* Guarded: without background-clip the fill would be transparent and the word
+   would vanish, so the colour only goes see-through where clipping works. */
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .rainbow {
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+@keyframes hb-rainbow {
+  to { background-position: 200% center; }
+}
+
 .login-card h2 {
   margin: 0;
-  font-size: 1.5rem;
+  /* Scales down on narrow cards rather than wrapping awkwardly. */
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
   font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
 }
 .login-card p { margin: 0; font-size: 0.875rem; line-height: 1.55; color: rgba(245, 245, 245, 0.75); }
 /* After the general p rule, or the shared colour would win. */
@@ -689,12 +793,15 @@ button { cursor: pointer; font-family: inherit; }
 .login-card .detected strong { color: var(--accent); font-weight: 700; }
 .login-card button {
   align-self: flex-start;
-  padding: 0.65rem 1.35rem;
+  /* On top of the card's 1rem gap, so the action separates from the copy
+     above it rather than reading as the next line of it. */
+  margin-top: 1rem;
+  padding: 0.8rem 1.5rem;
+  font-size: 0.9375rem;
   border: 0;
   border-radius: var(--pill);
   background: #f5f5f5;
   color: #14141f;
-  font-size: 0.875rem;
   font-weight: 700;
   transition: transform 0.15s ease;
 }
@@ -709,4 +816,6 @@ button { cursor: pointer; font-family: inherit; }
   .now-bar.is-busy .transport-main,
   .now-bar.is-busy .track-empty,
   .context-status { animation: none; }
+  .boot-dots i { animation: none; opacity: 0.6; }
+  .rainbow { animation: none; }
 }

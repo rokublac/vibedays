@@ -1,17 +1,28 @@
+export const LOCATION_CALLOUT_TITLE = 'Location detection is off'
+export const LOCATION_CALLOUT_BODY =
+  'vibedays needs your location to read the sunrise, sunset and weather where '
+  + 'you are. Turn it on for this site in your browser settings, then reload.'
+
 export interface LoginOptions {
   /** Live condition summary, so the app visibly works before you sign in. */
   summary: string
+  located: boolean
   onLogin(): void
 }
 
 export function buildLogin(root: HTMLElement, opts: LoginOptions): void {
   root.innerHTML = `
     <div class="login-card">
-      <h2>Match your mood with music</h2>
+      <h2>Welcome to <span class="rainbow">vibedays</span></h2>
       <p>
-        Fetches your season, time of day, weather and other mood metrics and plays ambient music to match your mood.
+        vibedays fetches your location's time of day, weather and other data points and matches it to a Spotify playlist. It dynamically changes the music depending on the vibe.
       </p>
-      <p class="detected">Detected mood: <strong>${escapeHtml(opts.summary)}</strong></p>
+      ${opts.located
+        ? `<p class="detected">Detected vibe: <strong>${escapeHtml(opts.summary)}</strong></p>`
+        : `<div class="callout">
+             <p class="callout-title">${LOCATION_CALLOUT_TITLE}</p>
+             <p class="callout-body">${LOCATION_CALLOUT_BODY}</p>
+           </div>`}
       <button id="login-btn" type="button">Log in with Spotify</button>
       <p class="fineprint">
         <a class="text-link" href="https://www.spotify.com/premium/"

@@ -5,6 +5,7 @@ import {
 import type { Conditions } from '../types'
 
 const C = (over: Partial<Conditions> = {}): Conditions => ({
+  located: true,
   phase: 'sunset-golden', season: 'winter', weather: 'clear',
   cloud: 'clear', precip: 'none', temp: 'cold', ...over,
 })
@@ -50,6 +51,12 @@ describe('describeTerms', () => {
     const terms = describeTerms(C({ precip: 'steady', cloud: 'overcast', temp: 'freezing' }))
     expect(terms).toEqual(['sunset golden hour', 'rainy', 'overcast grey', 'frosty', 'winter'])
   })
+  it('leaves the season out when there is no location', () => {
+    // Latitude decides the hemisphere; without it the season is a coin flip.
+    expect(describeTerms(C({ located: false }))).not.toContain('winter')
+    expect(describeTerms(C({ located: true }))).toContain('winter')
+  })
+
   it('produces terms for every phase', () => {
     for (const phase of PHASES) expect(describeTerms(C({ phase }))[0]).toBeTruthy()
   })

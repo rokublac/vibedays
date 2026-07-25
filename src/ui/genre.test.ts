@@ -102,9 +102,9 @@ describe('genre definitions', () => {
     // A "rain forest" anchor would be filtered out on a clear day: the app
     // would search for something it then refuses to play.
     const samples: Conditions[] = [
-      { phase: 'midday', season: 'summer', weather: 'clear',
+      { located: true, phase: 'midday', season: 'summer', weather: 'clear',
         cloud: 'clear', precip: 'none', temp: 'warm' },
-      { phase: 'deep-night', season: 'winter', weather: 'rain',
+      { located: true, phase: 'deep-night', season: 'winter', weather: 'rain',
         cloud: 'overcast', precip: 'steady', temp: 'freezing' },
     ]
     for (const c of samples) {

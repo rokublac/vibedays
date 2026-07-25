@@ -1,10 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
-import { buildLogin, buildPremiumNotice, escapeHtml } from './login'
+import {
+  buildLogin, buildPremiumNotice, escapeHtml,
+  LOCATION_CALLOUT_TITLE, LOCATION_CALLOUT_BODY,
+} from './login'
 
-const mount = (summary = 'clear · cold · winter → Deep night') => {
+const mount = (summary = 'clear · cold · winter · Deep night', located = true) => {
   const root = document.createElement('div')
   const onLogin = vi.fn()
-  buildLogin(root, { summary, onLogin })
+  buildLogin(root, { summary, located, onLogin })
   return { root, onLogin }
 }
 
@@ -14,7 +17,7 @@ describe('buildLogin', () => {
     // Meaning, not exact phrasing, so reworded copy doesn't fail the suite.
     expect(text).toMatch(/weather/)
     expect(text).toMatch(/mood|time of day|season/)
-    expect(text).toMatch(/music|lofi/)
+    expect(text).toMatch(/playlist|music|spotify/)
   })
 
   it('no longer claims you pick a playlist per mood', () => {
@@ -41,14 +44,51 @@ describe('buildLogin', () => {
     expect(link.getAttribute('rel')).toBe('noopener noreferrer')
   })
 
+  it('has no run-together words from an edit', () => {
+    // "vibedaysfetches" slipped through once.
+    expect(mount().root.textContent).not.toMatch(/vibedays[a-z]/i)
+  })
+
+  it('replaces the detected mood with a callout when location is off', () => {
+    const { root } = mount('anything', false)
+    expect(root.querySelector('.detected')).toBeNull()
+    expect(root.querySelector('.callout-title')!.textContent).toBe(LOCATION_CALLOUT_TITLE)
+    expect(root.querySelector('.callout-body')!.textContent).toBe(LOCATION_CALLOUT_BODY)
+  })
+
+  it('names no phase at all without location', () => {
+    // "location off -> Evening" read as a contradiction, and a clock-only
+    // guess is not worth showing on the way in.
+    const text = mount('Evening (clock only)', false).root.textContent!
+    expect(text).not.toContain('Evening')
+    expect(text).not.toContain('Detected mood')
+  })
+
+  it('tells the user where to turn it on', () => {
+    expect(LOCATION_CALLOUT_BODY).toContain('browser settings')
+  })
+
+  it('shows the detected mood again once location is available', () => {
+    const { root } = mount('clear · cold · winter · Deep night', true)
+    expect(root.querySelector('.callout')).toBeNull()
+    expect(root.querySelector('.detected')!.textContent).toContain('Deep night')
+  })
+
+  it('marks the wordmark for the rainbow treatment', () => {
+    const mark = mount().root.querySelector('.rainbow')!
+    expect(mark.textContent).toBe('vibedays')
+    // Still real text, so it is selectable, searchable and read aloud.
+    expect(mount().root.querySelector('h2')!.textContent).toBe('Welcome to vibedays')
+  })
+
   it('keeps the copy free of em dashes', () => {
     expect(mount().root.textContent).not.toContain('—')
   })
 
   it('shows the live condition summary, so it visibly works signed out', () => {
-    const { root } = mount('overcast · drizzle · mild · summer → Golden hour')
+    const { root } = mount('overcast · drizzle · mild · summer · Golden hour')
     expect(root.querySelector('.detected')!.textContent)
-      .toContain('overcast · drizzle · mild · summer → Golden hour')
+      .toContain('overcast · drizzle · mild · summer · Golden hour')
   })
 
   it('wires the login button', () => {
