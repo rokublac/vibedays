@@ -7,6 +7,7 @@ const palette: Palette = {
   fg: '#eee',
   accent: '#abc',
   particles: 'rain',
+  brandRainbow: ['#a00', '#0a0', '#00a'],
 }
 
 describe('applyPalette', () => {
@@ -22,6 +23,12 @@ describe('applyPalette', () => {
     expect(vars.getPropertyValue('--grad-bottom')).toBe('#222')
     expect(vars.getPropertyValue('--fg')).toBe('#eee')
     expect(vars.getPropertyValue('--accent')).toBe('#abc')
+  })
+
+  it('closes the wordmark gradient loop by repeating the first stop', () => {
+    applyPalette(document.createElement('div'), palette)
+    expect(document.documentElement.style.getPropertyValue('--brand-rainbow'))
+      .toBe('#a00, #0a0, #00a, #a00')
   })
 
   it('sets the particles data attribute on the backdrop element itself', () => {

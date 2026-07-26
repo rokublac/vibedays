@@ -40,6 +40,22 @@ const FG_BY_PHASE: Record<SunPhase, string> = {
   'blue-hour': PAPER,
 }
 
+/**
+ * The corner wordmark is a gradient fill, so its stops answer to the same
+ * contrast discipline as the text colours — and the bright set, measured
+ * against the dark login card, collapses on the light phases: every stop lands
+ * between 1.01:1 and 1.45:1 there, the green effectively invisible. Those
+ * phases get a deepened set instead.
+ *
+ * The bar is 3:1, not 4.5:1: at 20px and weight 800 the wordmark is WCAG large
+ * text. That is what lets the hues stay recognisable — at 4.5:1 the yellow has
+ * to darken to #594300 and stops reading as yellow at all. It is still the one
+ * stop that loses its character, since a colour cannot be both dark enough for
+ * near-white and still yellow.
+ */
+const RAINBOW_BRIGHT = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#b892ff']
+const RAINBOW_DEEP = ['#bf1f1f', '#7a5c00', '#186f26', '#0054e5', '#7c34e2']
+
 const ACCENT_BY_SEASON: Record<Season, string> = {
   spring: '#8ecae6',
   summer: '#ffd166',
@@ -58,10 +74,14 @@ export function derivePalette(
   weather: WeatherKind | null,
   season: Season,
 ): Palette {
+  const fg = FG_BY_PHASE[phase]
   return {
     gradient: GRADIENT_BY_PHASE[phase],
-    fg: FG_BY_PHASE[phase],
+    fg,
     accent: ACCENT_BY_SEASON[season],
     particles: particlesFor(weather),
+    // Keyed off the foreground rather than a second phase list, so the two
+    // cannot drift: dark text means a light backdrop means deepened stops.
+    brandRainbow: fg === INK ? RAINBOW_DEEP : RAINBOW_BRIGHT,
   }
 }

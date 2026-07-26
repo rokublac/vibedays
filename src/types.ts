@@ -38,6 +38,8 @@ export interface Palette {
   fg: string // body text; paired with the gradient to hold WCAG AA contrast
   accent: string
   particles: ParticleType
+  /** Stops for the corner wordmark, deepened on the light phases. */
+  brandRainbow: string[]
 }
 
 export interface MatchResult {

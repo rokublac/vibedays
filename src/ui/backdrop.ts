@@ -9,5 +9,7 @@ export function applyPalette(root: HTMLElement, p: Palette): void {
   vars.setProperty('--grad-bottom', p.gradient[1])
   vars.setProperty('--fg', p.fg)
   vars.setProperty('--accent', p.accent)
+  // First stop repeated at the end so the 200% sweep loops without a seam.
+  vars.setProperty('--brand-rainbow', [...p.brandRainbow, p.brandRainbow[0]].join(', '))
   root.dataset.particles = p.particles
 }

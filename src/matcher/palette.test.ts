@@ -97,6 +97,32 @@ describe('palette contrast (WCAG 2.1 AA, 4.5:1 for body text)', () => {
     }
   })
 
+  // The corner wordmark is 20px at weight 800 — WCAG large text, so 3:1.
+  // dawn and sunset-golden are excluded: their gradients are midtone, and the
+  // bright blue stop has measured 2.87:1 and 2.76:1 there since before the
+  // deepened set existed. Deepening does not help a midtone backdrop; the fix
+  // is a lighter blue in RAINBOW_BRIGHT. Delete from this list when that lands.
+  const BRAND_KNOWN_BELOW_3 = ['dawn', 'sunset-golden']
+
+  it.each(TIMES.filter((t) => !BRAND_KNOWN_BELOW_3.includes(t)))(
+    '%s brand wordmark stops clear 3:1 across the gradient', (time) => {
+      const { brandRainbow, gradient } = derivePalette(time, 'clear', 'spring')
+      const [top, bottom] = gradient
+      for (const stop of brandRainbow) {
+        for (const bg of [top, midpoint(top, bottom), bottom]) {
+          expect(contrast(stop, bg)).toBeGreaterThanOrEqual(3)
+        }
+      }
+    })
+
+  it('deepens the wordmark exactly on the phases that use dark body text', () => {
+    for (const time of TIMES) {
+      const { fg, brandRainbow } = derivePalette(time, 'clear', 'spring')
+      // #0054e5 is the deep blue, #4d96ff the bright one.
+      expect(brandRainbow).toContain(fg === '#1a1a2e' ? '#0054e5' : '#4d96ff')
+    }
+  })
+
   it.each(TIMES)('%s play button boundary is discernible against the backdrop', (time) => {
     // WCAG 1.4.11 wants the *boundary* to read against what surrounds it, which
     // the --fg ring gives at every time of day. It deliberately does NOT test

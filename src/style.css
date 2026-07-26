@@ -112,6 +112,19 @@ body {
   pointer-events: none;
 }
 
+/* The shared .rainbow stops are measured against the dark login card. In the
+   corner the same word sits on the page gradient instead, which is near-white
+   from sunrise through afternoon — so applyPalette swaps in a deepened set for
+   those phases. Only the corner: the login card and boot loader stay on their
+   dark card, where the bright stops are already the right answer.
+   The fallback repeats the bright set, for the frame before JS sets the var. */
+#brand .rainbow {
+  background-image: linear-gradient(
+    90deg,
+    var(--brand-rainbow, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #b892ff, #ff6b6b)
+  );
+}
+
 /* Transport sits under the controls; diagnostics drop to the bottom as fine print. */
 #controls { order: 1; }
 #player { order: 2; }
