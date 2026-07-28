@@ -2,7 +2,7 @@
 
 Music that fits your day.
 
-![vibedays playing a late night lofi playlist, with the current phase, weather and daylight hours shown](docs/screenshot.jpg)
+![vibedays playing late night ambient, with the current phase, weather and daylight hours shown](docs/screenshot.jpg)
 
 A static web player that reads the sun and the weather where you are, then finds
 music to match. When the day changes, so does the music.
@@ -83,9 +83,9 @@ For the full play path, turn on debug logging:
 localStorage.hb_debug = '1'   // in the browser console, takes effect immediately
 ```
 
-Or set `VITE_DEBUG=true` in `.env` and restart. Either prints every search rung
-and its result count, which is the fastest way to see whether a genre is finding
-specific playlists or falling through to the bare anchor. Both are dev-only;
+Or set `VITE_DEBUG=true` in `.env` and restart. Either prints the vibe that was
+resolved, the search that ran and how many tracks came back, which is the fastest
+way to see why a particular hour sounds the way it does. Both are dev-only;
 production builds never log.
 
 ## How it works
@@ -138,6 +138,11 @@ and guessing it would report summer during an Australian winter.
 | Temperature | freezing, cold, mild, warm, hot (feels-like, so wind chill counts) |
 | Season | hemisphere aware |
 
+These shape the readout, the palette and the particles. Only the hour and the
+weather kind reach the music, because the catalogue has no vocabulary for the
+rest: "summer" returns one track and "winter" four, while "glow" returns forty.
+Artists title tracks after things you can see, not after the season.
+
 ### How a vibe is chosen
 
 Every hour has its own imagery rather than its own mood. This is measured, not
@@ -175,6 +180,39 @@ mood, so it takes that instead.
 There is only one text slot. Two words collapse the pool: `rain morning` returns
 a single track.
 
+### What gets thrown away
+
+Audius is an open catalogue, so a search returns things that are not what you
+want to hear. Three filters run over every result, in `src/audius/search-api.ts`.
+
+**Unplayable tracks.** Not streamable, deleted, unavailable, or stream-gated —
+gated tracks need a signature from the listener's wallet, which an app with no
+login does not have.
+
+**Anything outside 60–900 seconds.** Measured over 1193 tracks: the tail runs to
+3.7-hour DJ mixes and whole albums uploaded as one track, while the bottom 5% is
+79-second loops and stingers. Neither belongs in a player that follows the
+weather — a 45-minute mix makes "next" inert. The band keeps 95% of the
+catalogue.
+
+**Content marketing.** Companies upload spoken advertising tagged as music; a
+contract-software firm's piece was turning up between two lofi tracks. Titles are
+screened for phrases that name a commercial service. Titles only: lofi
+descriptions genuinely advertise themselves as "perfect for productivity and
+workflow", so screening descriptions flagged seven good tracks for every real
+one. Over 1019 tracks from the app's own queries it rejects exactly one.
+
+Filtering on a missing mood looked tempting and is wrong — 9% of the catalogue
+has no mood set and almost all of it is good music.
+
+### The queue
+
+The source owns its own queue, which is the whole reason skipping is cheap:
+`next` and `previous` are index moves, not requests. When the queue gets within
+five tracks of the end it pages deeper for the same vibe, so skipping never runs
+out and never loops back to something already heard. One request per hundred
+skips rather than one per skip.
+
 ### Colours
 
 Every phase has its own gradient. Each one is paired with a foreground colour
@@ -196,24 +234,28 @@ src/
   matcher/      conditions to palette
   ui/           rendering, all DOM in here
   config/       genres, volume, saved city
+  fade.ts       volume ramps, used when the music changes
 ```
 
 Tests sit next to the code they cover. There is no framework and no state
 library; the app is small enough not to need either.
 
-Around 420 tests, and a fair number of them are not what you would expect. The
+Around 360 tests, and a fair number of them are not what you would expect. The
 contrast ones compute real WCAG ratios rather than trusting the palette. The
-search ones assert that a query for a clear night will not pick a playlist called
-"lofi rain". Most exist because the behaviour broke once.
+player ones assert that skipping makes no network calls, and that starting
+playback still finishes when the audio never actually begins. Most exist because
+the behaviour broke once.
 
 ## Making it yours
 
-- **Different genres?** `GENRES` in `src/config/genres.ts`. Each one is a label
-  and a search anchor that replaces the genre word in every query. Two rules,
-  both covered by tests: no repeated word inside an anchor, and no weather or
-  season words (the result ranker would reject its own matches).
-- **Different search terms?** `PHASE_TERMS` and the band term tables in
-  `src/conditions/descriptors.ts`.
+- **Different genres?** `GENRES` in `src/config/genres.ts`, plus an entry in
+  `GENRE_MAP` in `src/audius/mood-map.ts` naming the Audius genre behind it. A
+  genre with no Audius equivalent cannot work: it would have to spend the one
+  text slot naming itself, leaving no room for the hour's vibe word. That is why
+  synthwave was dropped.
+- **Different vibe words?** `PHASE_VIBE` in `src/audius/mood-map.ts`. Check the
+  pool size before committing to one — most words return almost nothing, and a
+  mood alongside the word usually empties it.
 - **Different phase timings?** `LATE_NIGHT_HOUR`, `DEEP_NIGHT_END_HOUR` and the
   golden/blue hour windows in `src/conditions/sun.ts`.
 - **Different colours?** `src/matcher/palette.ts`, then run the tests.
