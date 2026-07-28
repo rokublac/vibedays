@@ -18,14 +18,12 @@ import { loadGenre, saveGenre, type Genre } from './config/genres'
 import { buildLogin, buildPremiumNotice, buildAccessNotice } from './ui/login'
 import { fetchProfile, ProfileError, type SpotifyProfile } from './spotify/profile-api'
 import { handleRedirect, isLoggedIn, beginLogin, getAccessToken, logout } from './spotify/auth'
-import { searchPlaylists } from './spotify/search-api'
-import { createAutoPlaylists } from './spotify/auto-playlist'
-import { initPlayer, type PlayerHandle } from './spotify/player'
+import { createSpotifySource } from './source/spotify-source'
+import type { MusicSource, Selection } from './source/types'
 import { fadeVolume } from './spotify/fade'
 import { loadVolume, saveVolume, effective, type VolumeState } from './config/volume'
 import { canSetVolume } from './ui/audio-capability'
 import { buildVolume } from './ui/volume'
-import { playPlaylist, fetchTrackCount, randomStart, setShuffle } from './spotify/playback-api'
 import { SPOTIFY_CLIENT_ID } from './config/spotify'
 import { debug } from './debug'
 
@@ -65,11 +63,11 @@ async function boot() {
   }
 
   let coords: Coords | null = null
-  let source: Diagnostics['source'] = 'none'
+  let locationSource: Diagnostics['source'] = 'none'
   let place: string | null = null
   try {
     coords = await getBrowserLocation()
-    source = 'geolocation'
+    locationSource = 'geolocation'
   } catch {
     // Fall back to a city the user named previously, so a refused permission
     // does not have to be answered again on every visit.
@@ -77,7 +75,7 @@ async function boot() {
     if (saved) {
       coords = saved.coords
       place = saved.name
-      source = 'city'
+      locationSource = 'city'
     } else {
       coords = null
     }
@@ -108,24 +106,42 @@ async function boot() {
 
   let genre: Genre = loadGenre()
 
-  // Playlists come from searching the public Spotify catalogue per mood; the
-  // choice is pinned for this session so moods return to the same playlist.
-  const autoPlaylists = createAutoPlaylists({
+  let volume: VolumeState = loadVolume()
+
+  // Declared here but assigned after buildPlayer has rendered #volume-slot.
+  // applyVolume only reads it at call time.
+  let volumeUI: ReturnType<typeof buildVolume> | null = null
+
+  // Where the music comes from. A `let`, not a const: the free-source toggle
+  // reassigns this in a later phase.
+  let source: MusicSource = createSpotifySource({
+    getToken: getAccessToken,
     genre: () => genre,
-    search: async (query, offset) => {
-      const token = await getAccessToken()
-      if (!token) return []
-      return searchPlaylists(token, query, fetch, undefined, offset)
-    },
+    initialVolume: effective(volume),
     onQuery: (query, count) => debug('search rung', { query, count }),
+    callbacks: {
+      onState: (track, paused) => playerUI.update(track, paused),
+      onFatal: (kind, msg) => {
+        console.error(`player ${kind} error:`, msg)
+        issue = `player ${kind}: ${msg || 'no message'}`
+        updateDiagnostics()
+        started = false
+        // A free plan is not a bad token. Clearing it would send the user back
+        // to the login screen, where signing in again changes nothing.
+        if (kind === 'account') { showPremiumRequired(); return }
+        logout()
+        profile = null
+        account.update(null)
+        showLogin()
+      },
+    },
   })
 
-  let player: PlayerHandle | null = null
-  let playerInit: Promise<void> | null = null
-  let currentPlaylistId = ''
-  let startingPlaylistId: string | null = null
+  /** The selection currently playing, so playConditions knows a start landed. */
+  let currentSelection: Selection | null = null
+  /** Guards rapid ticks from starting the same selection twice. */
+  let startingId: string | null = null
   let started = false
-  let autoplayWanted = false
   // The mood whose playlist is playing, and the one being switched to.
   // Genre plus conditions: switching genre must count as a change, or the
   // render tick would see the same key and never start the new music.
@@ -163,73 +179,27 @@ async function boot() {
     return formatConditions(base)
   }
 
-  // Initialise the SDK player once (idempotent, guards concurrent callers).
-  function ensurePlayer(): Promise<void> {
-    if (player) return Promise.resolve()
-    if (playerInit) return playerInit
-    playerInit = (async () => {
-      try {
-        debug('ensurePlayer: initialising SDK')
-        player = await initPlayer(getAccessToken, {
-          onState: (track, paused) => playerUI.update(track, paused),
-          onFatal: (kind, msg) => {
-            console.error(`Spotify player ${kind} error:`, msg)
-            issue = `player ${kind}: ${msg || 'no message'}`
-            updateDiagnostics()
-            started = false
-            // A free plan is not a bad token. Clearing it would send the user
-            // back to the login screen, where signing in again changes nothing.
-            if (kind === 'account') { showPremiumRequired(); return }
-            logout()
-            profile = null
-            account.update(null)
-            showLogin()
-          },
-        }, effective(volume))
-      } catch (e) {
-        console.error('Spotify player failed to load', e)
-        // Allow a later attempt (e.g. after switching to a Premium account)
-        // instead of caching a rejected promise forever.
-        playerInit = null
-        return
-      }
-      debug('ensurePlayer: ready', { deviceId: player?.deviceId })
-      // If play was pressed before the player was ready, start now.
-      if (autoplayWanted) {
-        autoplayWanted = false
-        void playConditions(base)
-      }
-    })()
-    return playerInit
-  }
-
-  async function ensurePlayerAndRender() {
-    render()
-    await ensurePlayer()
-    render()
-  }
-
   /**
-   * Resolves the mood to a playlist and starts it. playingMood is only set on
-   * a confirmed start, so a failed search or switch is retried on a later tick
-   * rather than being silently treated as done.
+   * Resolves the conditions to a selection and starts it. playingKey is only
+   * set on a confirmed start, so a failed search or switch is retried on a
+   * later tick rather than being silently treated as done.
    */
   async function playConditions(c: Conditions): Promise<void> {
     const key = keyFor(c)
-    debug('playConditions', { key, pendingKey, playingKey, started, hasPlayer: !!player })
+    debug('playConditions', { key, pendingKey, playingKey, started })
     if (pendingKey === key) return
     pendingKey = key
     setBusy(1)
     try {
-      const playlist = await autoPlaylists.resolve(c)
-      debug('resolved playlist', playlist)
-      if (!playlist) {
-        console.error(`no playable playlist found for: ${key}`)
+      const sel = await source.resolve(c)
+      debug('resolved selection', sel)
+      if (!sel) {
+        console.error(`no playable selection found for: ${key}`)
         return
       }
-      await startPlaylist(playlist.id)
-      if (currentPlaylistId === playlist.id) playingKey = key
-      playerUI.setAlternatives(autoPlaylists.poolSize(c))
+      await startSelection(sel)
+      if (currentSelection?.id === sel.id) playingKey = key
+      playerUI.setAlternatives(source.alternatives(c))
       updateDiagnostics()
     } finally {
       setBusy(-1)
@@ -246,15 +216,14 @@ async function boot() {
     genrePicker.setBusy(busyCount > 0)
   }
 
-  /** Swap to another playlist for the conditions already playing. */
+  /** Swap to another selection for the conditions already playing. */
   async function rerollPlaylist(): Promise<void> {
-    if (!player) return
     setBusy(1)
     try {
-      const playlist = await autoPlaylists.reroll(base)
-      debug('reroll', playlist)
-      if (playlist) await startPlaylist(playlist.id)
-      playerUI.setAlternatives(autoPlaylists.poolSize(base))
+      const sel = await source.reroll(base)
+      debug('reroll', sel)
+      if (sel) await startSelection(sel)
+      playerUI.setAlternatives(source.alternatives(base))
     } catch (e) {
       console.error('could not switch playlist', e)
     } finally {
@@ -266,20 +235,14 @@ async function boot() {
     const result = match(base)
     applyPalette(backdrop, result.palette)
     controls.update(base)
-    // Once playing, any change in conditions resolves a playlist and switches.
-    if (started && player && keyFor(base) !== playingKey) void playConditions(base)
+    // Once playing, any change in conditions resolves a selection and switches.
+    if (started && keyFor(base) !== playingKey) void playConditions(base)
     updateDiagnostics()
   }
 
   // Each switch claims a generation; an older in-flight fade sees it is no
   // longer current and drops out rather than fighting the newer one.
   let fadeGeneration = 0
-
-  let volume: VolumeState = loadVolume()
-
-  // Declared here but assigned further down, after buildPlayer has rendered
-  // #volume-slot. applyVolume only reads it at call time.
-  let volumeUI: ReturnType<typeof buildVolume> | null = null
 
   /**
    * How far through a fade the player is, 0..1. The volume actually sent to
@@ -288,9 +251,9 @@ async function boot() {
    */
   let fadeFraction = 1
 
-  /** Pushes the current fraction × level at the SDK. */
+  /** Pushes the current fraction × level at whichever source is playing. */
   function pushVolume(): Promise<void> {
-    return player?.setVolume(fadeFraction * effective(volume)) ?? Promise.resolve()
+    return source.setVolume(fadeFraction * effective(volume))
   }
 
   function applyVolume(next: VolumeState): void {
@@ -302,24 +265,23 @@ async function boot() {
     void pushVolume().catch(() => {})
   }
 
-  async function startPlaylist(playlistId: string) {
-    if (startingPlaylistId === playlistId) return // already starting this one (guards rapid ticks)
-    startingPlaylistId = playlistId
+  async function startSelection(sel: Selection) {
+    // Guards rapid ticks. It sits out here rather than inside the source
+    // because what must not happen twice is the whole start *including* the
+    // crossfade — a second pass would fade down and back up over the same
+    // music for no reason.
+    if (startingId === sel.id) return
+    startingId = sel.id
     const generation = ++fadeGeneration
     const isCurrent = () => generation === fadeGeneration
     try {
-      const token = await getAccessToken()
-      debug('startPlaylist: preflight', {
-        playlistId, hasToken: !!token, hasPlayer: !!player, deviceId: player?.deviceId,
-      })
-      if (!token || !player) { showLogin(); return }
-      const p = player
+      debug('startSelection: preflight', sel)
 
       // Ramps a fraction rather than an absolute volume: the listener's level
       // is a separate multiplier, so a drag during the fade is not clobbered.
       const ramp = (f: number) => {
         fadeFraction = f
-        return p.setVolume(f * effective(volume))
+        return source.setVolume(f * effective(volume))
       }
 
       // Fade out only if something is already audible — otherwise the first
@@ -328,21 +290,15 @@ async function boot() {
       if (!isCurrent()) return
 
       await ramp(0)
-
-      // Start somewhere inside the playlist rather than always on track one,
-      // then hand the rest of the queue to Spotify's own shuffle.
-      const total = await fetchTrackCount(token, playlistId)
-      const position = randomStart(total, Math.random)
-      await playPlaylist(token, p.deviceId, playlistId, fetch, position)
-      debug('startPlaylist: play request accepted', { playlistId, position, total })
-      void setShuffle(token, p.deviceId, true).then((ok) => debug('shuffle set', ok))
+      await source.start(sel)
+      debug('startSelection: play request accepted', sel)
 
       started = true
-      currentPlaylistId = playlistId
+      currentSelection = sel
 
       if (isCurrent()) await fadeVolume(ramp, 0, 1, { isCurrent })
     } catch (e) {
-      console.error('could not start playlist', e)
+      console.error('could not start playback', e)
       issue = `playback: ${e instanceof Error ? e.message : String(e)}`
       updateDiagnostics()
       // Never leave the player silent because a switch failed mid-fade.
@@ -351,20 +307,20 @@ async function boot() {
         await pushVolume().catch(() => {})
       }
     } finally {
-      startingPlaylistId = null
+      startingId = null
     }
   }
 
   const playerUI = buildPlayer(document.getElementById('player')!, {
     onToggle: () => {
-      debug('toggle: clicked', { started, hasPlayer: !!player })
+      debug('toggle: clicked', { started })
       if (!started) {
-        player?.activate() // gesture → unlock audio, then play
+        void source.activate() // gesture → unlock audio, then play
         void playConditions(base)
-      } else player?.togglePlay()
+      } else source.togglePlay()
     },
-    onNext: () => player?.next(),
-    onPrev: () => player?.previous(),
+    onNext: () => source.next(),
+    onPrev: () => source.previous(),
     onReroll: () => void rerollPlaylist(),
   })
 
@@ -387,7 +343,7 @@ async function boot() {
   async function useCity(name: string): Promise<void> {
     const found = await geocodeCity(name)
     coords = found
-    source = 'city'
+    locationSource = 'city'
     savePlace({ name, coords: found })
     // The typed name is better than a reverse lookup here: it is what the user
     // asked for, and it saves a request.
@@ -404,7 +360,7 @@ async function boot() {
   async function retryLocation(): Promise<void> {
     try {
       coords = await getBrowserLocation()
-      source = 'geolocation'
+      locationSource = 'geolocation'
       // Real coordinates beat a typed city, so stop remembering the fallback.
       clearPlace()
       place = null
@@ -514,7 +470,7 @@ async function boot() {
       sunset: weather.current()?.sun?.sunset ?? null,
       cloudCover: weather.current()?.cloudCover ?? null,
       precipitationMm: weather.current()?.precipitationMm ?? null,
-      source,
+      source: locationSource,
       coords,
       place,
       weatherCode: weather.current()?.code ?? null,
@@ -554,7 +510,8 @@ async function boot() {
         // Catch the free tier before the SDK does, so the failure is explained
         // rather than appearing as a bounce back to the login screen.
         if (state.profile.product && state.profile.product !== 'premium') showPremiumRequired()
-        else await ensurePlayerAndRender()
+        // The SDK now initialises lazily inside the source, on the first start.
+        else render()
         break
     }
   }
