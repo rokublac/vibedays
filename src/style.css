@@ -458,16 +458,23 @@ button { cursor: pointer; font-family: inherit; }
   text-decoration-color: currentColor;
 }
 
-/* One bar: track link on the left, transport on the right. */
+/* Two rows: the track and transport, then volume beneath. */
 .now-bar {
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  flex-direction: column;
+  align-items: stretch;
   width: 100%;
   padding: 0.75rem;
   border-radius: 12px;
   border: 1px solid var(--hairline);
   transition: border-color 1.5s ease;
+}
+
+/* One row: track link on the left, transport on the right. */
+.now-bar-main {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
   /* Matches the 80px artwork plus padding, so the bar doesn't jump in height
      when the first track arrives and replaces the empty message. */
   min-height: 104px;
@@ -532,6 +539,110 @@ button { cursor: pointer; font-family: inherit; }
 }
 .now-bar.is-busy .transport-main { animation: hb-breathe 1.2s ease-in-out infinite; }
 .now-bar.is-busy .track-empty { animation: hb-breathe 1.2s ease-in-out infinite; }
+
+/* ---- Volume ---- */
+
+/* Separated from the transport by a hairline so the bar still reads as two
+   distinct jobs rather than one crowded strip. */
+.volume-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--hairline);
+}
+
+/* Same treatment as .transport at a smaller size — this is a sibling control,
+   not a second class of button. */
+.volume-mute {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--fg-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+.volume-mute:hover { color: var(--fg); transform: scale(1.06); }
+.volume-mute:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+.volume-range {
+  flex: 1;
+  min-width: 0;
+  /* A 44px row makes the track catchable with a thumb; the visible track is
+     4px, drawn centred inside it. */
+  height: 44px;
+  margin: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.volume-range:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; border-radius: 4px; }
+
+/* The filled portion is painted into the track with a hard-stop gradient at
+   --fill, which ui/volume.ts sets on every update. */
+.volume-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background:
+    linear-gradient(to right, var(--accent) var(--fill, 60%), transparent var(--fill, 60%)),
+    color-mix(in srgb, var(--fg) 22%, transparent);
+}
+.volume-range::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--fg) 22%, transparent);
+}
+.volume-range::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+/* Ringed in --fg for the same reason .transport-main is: the accents alone
+   drop below 3:1 against the light daytime gradients. */
+.volume-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 1px solid var(--fg);
+  /* Centres the 16px thumb on the 4px track. */
+  margin-top: -6px;
+  transition: transform 0.15s ease;
+}
+.volume-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 1px solid var(--fg);
+  transition: transform 0.15s ease;
+}
+.volume-range:hover::-webkit-slider-thumb { transform: scale(1.15); }
+.volume-range:hover::-moz-range-thumb { transform: scale(1.15); }
+
+/* Tabular figures and a fixed width, so the row does not reflow on every
+   frame of a drag. */
+.volume-value {
+  flex-shrink: 0;
+  min-width: 3.5rem;
+  text-align: right;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-muted);
+}
 
 /* ---- Now-playing card: a reference/link-out, not a second player ---- */
 
@@ -636,7 +747,7 @@ button { cursor: pointer; font-family: inherit; }
 
 @media (max-width: 40rem) {
   /* Transport moves under the track rather than squeezing it. */
-  .now-bar {
+  .now-bar-main {
     flex-direction: column;
     align-items: stretch;
     gap: 0.75rem;
