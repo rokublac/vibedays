@@ -180,7 +180,6 @@ button { cursor: pointer; font-family: inherit; }
    wraps an avatar and the genre chip is text only, so left alone they differ.
    Scoped to .head-actions so it outranks each control's own padding shorthand. */
 .head-actions .genre-chip,
-.head-actions .account-chip,
 .head-actions .btn-quiet {
   height: 2.25rem;
   padding-top: 0;
@@ -259,8 +258,7 @@ button { cursor: pointer; font-family: inherit; }
 
 /* Quiet outline action. 55% --fg is the lightest border that holds 3:1 against
    every gradient — measured, same threshold the transport uses. */
-.btn-quiet,
-.account-chip {
+.btn-quiet {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -276,40 +274,18 @@ button { cursor: pointer; font-family: inherit; }
 .btn-quiet[hidden] { display: none; }
 /* Full strength on hover: --fg-muted drops to 3.83:1 on the evening gradient
    once the hover tint sits behind it. */
-.btn-quiet:hover,
-.account-chip:hover {
+.btn-quiet:hover {
   background: color-mix(in srgb, var(--fg) 10%, transparent);
   color: var(--fg);
   border-color: var(--fg);
 }
-.btn-quiet:focus-visible,
-.account-chip:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; }
+.btn-quiet:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; }
 
 .account { position: relative; }
 .account[hidden] { display: none; }
-.account-chip { padding-left: 0.35rem; }
 
-.account-avatar {
-  display: grid;
-  place-items: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 50%;
-  overflow: hidden;
-  flex-shrink: 0;
-  background: color-mix(in srgb, var(--fg) 18%, transparent);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--fg);
-}
-.account-avatar-img { width: 100%; height: 100%; object-fit: cover; }
-.account-avatar-img[hidden] { display: none; }
-
-.account-name { max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* Fixed dark surface like the login card: independent of the palette, so the
-   menu's contrast never depends on which gradient is behind it. */
+/* Fixed dark surface, independent of the palette, so the menu's contrast never
+   depends on which gradient is behind it. */
 .account-menu {
   position: absolute;
   top: calc(100% + 0.5rem);
@@ -385,13 +361,7 @@ button { cursor: pointer; font-family: inherit; }
 .context-line:hover { color: var(--fg); }
 .context-line:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; border-radius: 4px; }
 .context-line[aria-disabled='true'] { cursor: default; }
-.context-line[aria-disabled='true']:hover { color: var(--fg-muted); }
-
-/* Never wrap or shrink: the label is the shortest part and was being squeezed
-   onto two lines by a long playlist name. */
-.context-label { font-weight: 600; flex-shrink: 0; white-space: nowrap; }
-
-/* Stands in for the playlist name while a new one is being found. Same
+.context-line[aria-disabled='true']:hover { color: var(--fg-muted); }/* Stands in for the playlist name while a new one is being found. Same
    typographic slot, so the row does not change shape. */
 .context-status {
   flex: 1;
@@ -697,7 +667,6 @@ button { cursor: pointer; font-family: inherit; }
 }
 .globe svg { width: 100%; height: 100%; display: block; }
 
-
 .diagnostics {
   flex: 1;
   min-width: 0;
@@ -755,14 +724,6 @@ button { cursor: pointer; font-family: inherit; }
 }
 .callout-title { margin: 0 0 0.3rem; font-size: 0.9375rem; font-weight: 700; }
 .callout-body { margin: 0; font-size: 0.875rem; line-height: 1.55; color: var(--fg-muted); }
-
-.login-card .callout-error { border-left-color: #ff8fa3; }
-.login-card .callout-error .callout-title { color: #ff8fa3; }
-
-/* On the fixed dark login card the palette tokens do not apply. */
-.login-card .callout { border-left-color: rgba(245, 245, 245, 0.5); }
-.login-card .callout-title { color: #f5f5f5; }
-.login-card .callout-body { color: rgba(245, 245, 245, 0.7); }
 
 /* Fallback for when geolocation is refused: naming a city gets the same
    sunrise, sunset and weather lookup. */
@@ -897,23 +858,7 @@ button { cursor: pointer; font-family: inherit; }
   backdrop-filter: blur(12px);
   padding: 1rem;
 }
-#overlay[hidden] { display: none; }
-
-.login-card {
-  background: #14141f;
-  color: #f5f5f5;
-  border-radius: 12px;
-  padding: 1.75rem;
-  /* Matches the player's content column (#app max-width minus its padding). */
-  width: min(744px, 100%);
-  max-height: 85vh;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
-}
-/* Animated rainbow wordmark. Every stop is measured at 6.2:1 or better on the
+#overlay[hidden] { display: none; }/* Animated rainbow wordmark. Every stop is measured at 6.2:1 or better on the
    #14141f card, so the text stays AA at any point in the sweep. */
 .rainbow {
   background-image: linear-gradient(
@@ -934,20 +879,7 @@ button { cursor: pointer; font-family: inherit; }
 }
 @keyframes hb-rainbow {
   to { background-position: 200% center; }
-}
-
-.login-card h2 {
-  margin: 0;
-  /* Scales down on narrow cards rather than wrapping awkwardly. */
-  font-size: clamp(1.75rem, 5vw, 2.5rem);
-  font-weight: 800;
-  letter-spacing: -0.035em;
-  line-height: 1.1;
-}
-.login-card p { margin: 0; font-size: 0.875rem; line-height: 1.55; color: rgba(245, 245, 245, 0.75); }
-/* After the general p rule, or the shared colour would win. */
-.login-card .fineprint { font-size: 0.8125rem; color: rgba(245, 245, 245, 0.55); }
-/* Full strength against the muted fine print, so the link is obviously a link. */
+}/* Full strength against the muted fine print, so the link is obviously a link. */
 .text-link {
   color: #f5f5f5;
   text-decoration: underline;
@@ -957,26 +889,10 @@ button { cursor: pointer; font-family: inherit; }
 }
 .text-link:hover { text-decoration-color: currentColor; }
 .text-link:focus-visible { outline: 2px solid #f5f5f5; outline-offset: 2px; border-radius: 2px; }
-.login-card .detected strong { color: var(--accent); font-weight: 700; }
-.login-card button {
-  align-self: flex-start;
-  /* On top of the card's 1rem gap, so the action separates from the copy
-     above it rather than reading as the next line of it. */
-  margin-top: 1rem;
-  padding: 0.8rem 1.5rem;
-  font-size: 0.9375rem;
-  border: 0;
-  border-radius: var(--pill);
-  background: #f5f5f5;
-  color: #14141f;
-  font-weight: 700;
-  transition: transform 0.15s ease;
-}
-.login-card button:hover { transform: scale(1.04); }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
-  .transport:hover, .login-card button:hover { transform: none; }
+  .transport:hover { transform: none; }
   /* Without a transition the fade class would just blank the content for the
      swap delay, so keep it visible and let the change happen instantly. */
   .is-fading { opacity: 1 !important; }
@@ -986,22 +902,3 @@ button { cursor: pointer; font-family: inherit; }
   .rainbow { animation: none; }
 }
 
-/* ---- Source toggle ---- */
-
-/* Inherits .genre-chip; only the caret-less shape differs, since this is a
-   straight toggle rather than a menu. */
-.source-chip { cursor: pointer; }
-.source-chip:disabled { opacity: 0.5; cursor: default; }
-.source-chip:disabled:hover {
-  background: none;
-  color: var(--fg-muted);
-  border-color: color-mix(in srgb, var(--fg) 55%, transparent);
-}
-
-/* The free-source escape hatch on the login card. Quiet: signing in is still
-   the primary action, this is the alternative. */
-.login-alt {
-  margin: 0.75rem 0 0;
-  font-size: 0.85rem;
-  color: var(--fg-muted);
-}
