@@ -76,7 +76,7 @@ describe('createAudiusSource', () => {
     // A pool has no permalink, so there is nothing to link the line to.
     expect(sel).toEqual({
       id: 'Lo-Fi|night|Cool|0',
-      label: 'Cool night lofi',
+      label: 'Cool night',
       url: null,
     })
   })

@@ -64,14 +64,27 @@ const WEATHER_MOOD: Partial<Record<WeatherKind, string>> = {
 }
 
 /**
- * Phase words with a healthy pool. Only two survive: "morning" (34) and
- * "night" (25). "sunrise", "midday" and "dusk" return nothing, and combining
- * two words collapses the pool ("rain morning" returns one track), so a
- * weather word always wins over a phase word.
+ * What each hour sounds like, as concrete imagery rather than the name of the
+ * hour. Measured: artists title tracks "glow", "neon", "nostalgic" — never
+ * "hopeful" (3 tracks), "emotive" (2) or "wistful" (1). Feeling words do not
+ * exist in the catalogue; things you can see and touch do.
+ *
+ * Some entries set a mood as well and some deliberately do not. Mood and text
+ * together intersect to almost nothing unless the mood is a common one:
+ * "glow" alone is 40 tracks, Yearning + "glow" is zero; "nostalgic" is 39,
+ * Romantic + "nostalgic" is one. Where the pairing survives it is kept,
+ * because it is more precise; where it collapses, the word carries the vibe
+ * alone. Pool sizes measured against the live catalogue are in the comments.
  */
-const PHASE_TEXT: Partial<Record<SunPhase, string>> = {
-  morning: 'morning',
-  evening: 'night',
+const PHASE_VIBE: Partial<Record<SunPhase, AudiusQuery>> = {
+  dawn: { query: 'soft', label: 'Soft dawn' }, // 40
+  'sunrise-golden': { query: 'glow', label: 'Golden glow' }, // 40
+  morning: { query: 'morning', mood: 'Easygoing', label: 'Easy morning' }, // 34
+  midday: { query: 'sunny', label: 'Sunny midday' }, // 18
+  afternoon: { query: 'chill', mood: 'Easygoing', label: 'Afternoon chill' }, // 40
+  'sunset-golden': { query: 'nostalgic', label: 'Golden hour' }, // 39
+  'blue-hour': { query: 'neon', label: 'Neon blue hour' }, // 36
+  evening: { query: 'night', mood: 'Cool', label: 'Cool night' }, // 25
 }
 
 /**
@@ -107,35 +120,55 @@ const NIGHT: SunPhase[] = ['late-night', 'deep-night']
  * changes the feel of a day more than the clock does. A clear sky says nothing
  * the hour has not already said, so it is absent from BY_WEATHER.
  */
-/** The word searched for alongside the genre, or none. Weather beats hour. */
-export function textFor(c: Conditions): string | undefined {
-  const weather = c.weather ? WEATHER_TEXT[c.weather] : undefined
-  return weather ?? PHASE_TEXT[c.phase]
+/** The hour's vibe, before weather has its say. */
+export function vibeFor(c: Conditions): AudiusQuery {
+  return PHASE_VIBE[c.phase] ?? { mood: BY_PHASE[c.phase], label: BY_PHASE[c.phase] }
 }
 
+/**
+ * The mood filter alone, kept for the paths that still want one: the small
+ * hours, and weather that has no word of its own.
+ */
 export function moodFor(c: Conditions): string {
   if (NIGHT.includes(c.phase)) return BY_PHASE[c.phase]
-
-  // With a weather word carrying the conditions, the hour keeps the mood — so
-  // a wet morning and a wet evening are both rainy but not identical. Without
-  // one, the weather has to take the mood or it would not be felt at all.
-  const byPhase = BY_PHASE[c.phase]
+  const byPhase = vibeFor(c).mood ?? BY_PHASE[c.phase]
   if (c.weather && WEATHER_TEXT[c.weather]) return DAMPENED[byPhase] ?? byPhase
   return (c.weather ? WEATHER_MOOD[c.weather] : undefined) ?? byPhase
 }
 
 export function audiusQuery(c: Conditions, genre: Genre): AudiusQuery {
-  const mood = moodFor(c)
   const night = SLEEPS_AT_NIGHT.includes(genre.id) ? NIGHT_QUERY[c.phase] : undefined
-  if (night) return { ...night, mood }
+  if (night) return { ...night, mood: BY_PHASE[c.phase] }
 
   const base = GENRE_MAP[genre.id] ?? GENRE_MAP.lofi
-  const text = textFor(c)
-  // Synthwave already searches by text and cannot take a second word — two
-  // words collapse the pool.
-  if (base.query || !text) {
+  // Synthwave already spends the one text slot on its own name, so it can only
+  // take a mood — a second word collapses the pool.
+  if (base.query) {
+    const mood = moodFor(c)
     return { ...base, mood, label: `${mood} ${genre.label.toLowerCase()}` }
   }
-  // "Easygoing rain lofi", "Cool night lofi" — mood, conditions, genre.
-  return { ...base, mood, query: text, label: `${mood} ${text} ${genre.label.toLowerCase()}` }
+
+  const vibe = vibeFor(c)
+  const weatherWord = c.weather ? WEATHER_TEXT[c.weather] : undefined
+
+  if (weatherWord) {
+    // Rain takes the one text slot, and the hour keeps its mood so a wet
+    // morning and a wet evening are both rainy without being identical.
+    const mood = moodFor(c)
+    return {
+      ...base,
+      mood,
+      query: weatherWord,
+      label: `Rainy ${(vibe.label ?? mood).toLowerCase()}`,
+    }
+  }
+
+  // Weather with no word of its own can only be felt through the mood, which
+  // means giving up the hour's imagery for it.
+  const weatherMood = c.weather ? WEATHER_MOOD[c.weather] : undefined
+  if (weatherMood) {
+    return { ...base, mood: weatherMood, label: `${weatherMood} ${genre.label.toLowerCase()}` }
+  }
+
+  return { ...base, ...vibe }
 }
