@@ -39,8 +39,8 @@ describe('buildGenrePicker', () => {
   it('reports the picked genre and closes the menu', () => {
     const { root, onSelect } = mount()
     root.querySelector<HTMLButtonElement>('#genre-chip')!.click()
-    root.querySelector<HTMLButtonElement>('[data-genre="synthwave"]')!.click()
-    expect(onSelect).toHaveBeenCalledWith(genreById('synthwave'))
+    root.querySelector<HTMLButtonElement>('[data-genre="jazz"]')!.click()
+    expect(onSelect).toHaveBeenCalledWith(genreById('jazz'))
     expect(root.querySelector<HTMLDivElement>('#genre-menu')!.hidden).toBe(true)
   })
 

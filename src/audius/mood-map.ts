@@ -9,15 +9,12 @@ export interface AudiusQuery {
   label?: string
 }
 
-/** Audius genres for the app's five. Synthwave is absent and goes by text. */
+/** Every genre the picker offers maps onto a real Audius genre. */
 const GENRE_MAP: Record<string, AudiusQuery> = {
   lofi: { genre: 'Lo-Fi' },
   jazz: { genre: 'Jazz' },
   classical: { genre: 'Classical' },
   ambient: { genre: 'Ambient' },
-  // Not an Audius genre. Free text hits retrowave; genre=Electronic did not —
-  // it returned generic electronic instead.
-  synthwave: { query: 'synthwave' },
 }
 
 /**
@@ -141,13 +138,6 @@ export function audiusQuery(c: Conditions, genre: Genre): AudiusQuery {
   if (night) return { ...night, mood: BY_PHASE[c.phase] }
 
   const base = GENRE_MAP[genre.id] ?? GENRE_MAP.lofi
-  // Synthwave already spends the one text slot on its own name, so it can only
-  // take a mood — a second word collapses the pool.
-  if (base.query) {
-    const mood = moodFor(c)
-    return { ...base, mood, label: `${mood} ${genre.label.toLowerCase()}` }
-  }
-
   const vibe = vibeFor(c)
   const weatherWord = c.weather ? WEATHER_TEXT[c.weather] : undefined
 

@@ -11,7 +11,7 @@ At 6pm on a clear winter evening it plays something calm and unwinding. At 2am i
 plays sleep music. When it starts raining it changes again. Nobody picks the
 tracks, and there is nothing to configure — no account, no sign-in.
 
-Pick a genre (lofi, synthwave, jazz, classical or ambient) and the whole system
+Pick a genre (lofi, jazz, classical or ambient) and the whole system
 follows it.
 
 Music comes from [Audius](https://audius.co), an open catalogue of independent

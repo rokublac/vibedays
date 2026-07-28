@@ -99,7 +99,7 @@ describe('searchTracks', () => {
 
   it('omits filters that were not asked for', async () => {
     const f = fakeFetch([])
-    // Synthwave is not an Audius genre, so it searches by text with no genre.
+    // A text-only search still has to work: the night queries use one.
     await searchTracks({ query: 'synthwave' }, f as never)
     const url = String((f.mock.calls[0] as unknown[])[0])
     expect(url).toContain('query=synthwave')

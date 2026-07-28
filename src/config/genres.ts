@@ -5,12 +5,15 @@ export interface Genre {
 
 /**
  * What the picker offers. How each one is actually searched for lives in
- * audius/mood-map.ts, which maps these ids onto Audius genres — four map
- * directly and synthwave, which Audius has no genre for, goes by text.
+ * audius/mood-map.ts, which maps these ids onto Audius genres.
+ *
+ * Every one here has a real Audius genre behind it. Synthwave did not, so it
+ * had to spend the single text slot naming itself, leaving no room for the
+ * hour's vibe word — it never got sleep music at night or "neon" at blue hour,
+ * and barely followed the conditions at all.
  */
 export const GENRES: Genre[] = [
   { id: 'lofi', label: 'Lofi' },
-  { id: 'synthwave', label: 'Synthwave' },
   { id: 'jazz', label: 'Jazz' },
   { id: 'classical', label: 'Classical' },
   { id: 'ambient', label: 'Ambient' },

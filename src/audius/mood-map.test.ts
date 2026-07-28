@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { moodFor, vibeFor, audiusQuery } from './mood-map'
 import type { Conditions, SunPhase, WeatherKind } from '../types'
-import { genreById } from '../config/genres'
+import { GENRES, genreById } from '../config/genres'
 
 const at = (phase: SunPhase, weather: WeatherKind | null = 'clear'): Conditions => ({
   located: true,
@@ -131,12 +131,20 @@ describe('genres', () => {
     expect(audiusQuery(at('evening'), genreById('ambient')).genre).toBe('Ambient')
   })
 
-  it('gives synthwave a mood but no second word', () => {
-    // It already spends the one text slot on its own name; a second word
-    // collapses the pool.
+  it('every genre now takes the hour\'s vibe word', () => {
+    // Synthwave was removed precisely because it could not: it spent the one
+    // text slot naming itself, so it never got "neon" at blue hour or sleep
+    // music at night.
+    for (const g of GENRES) {
+      expect(audiusQuery(at('blue-hour'), g).query).toBe('neon')
+      expect(audiusQuery(at('evening'), g).genre).toBeTruthy()
+    }
+  })
+
+  it('falls back to lofi for a genre that no longer exists', () => {
+    // Anyone with synthwave saved in local storage lands on lofi rather than
+    // on nothing.
     const q = audiusQuery(at('evening'), genreById('synthwave'))
-    expect(q.query).toBe('synthwave')
-    expect(q.genre).toBeUndefined()
-    expect(q.mood).toBeTruthy()
+    expect(q.genre).toBe('Lo-Fi')
   })
 })
