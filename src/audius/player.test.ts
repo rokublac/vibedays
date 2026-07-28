@@ -13,16 +13,21 @@ const track = (id: string): AudiusTrack => ({
 
 const QUEUE = [track('a'), track('b'), track('c')]
 
-/** Stands in for <audio>: records src/volume and lets tests fire events. */
+/**
+ * Stands in for <audio>: records src/volume and lets tests fire events.
+ * src, volume and paused go through defineProperty because HTMLAudioElement
+ * declares paused read-only, so a plain assignment will not typecheck.
+ */
 function fakeAudio() {
-  const el = new EventTarget() as unknown as HTMLAudioElement & { _plays: number }
-  let src = ''
-  Object.defineProperty(el, 'src', { get: () => src, set: (v: string) => { src = v } })
-  el.volume = 1
-  el.paused = true
-  ;(el as { _plays: number })._plays = 0
-  el.play = vi.fn(async () => { (el as { _plays: number })._plays++; el.paused = false })
-  el.pause = vi.fn(() => { el.paused = true })
+  const state = { src: '', volume: 1, paused: true }
+  const el = new EventTarget() as unknown as HTMLAudioElement
+  const prop = <T>(name: string, get: () => T, set: (v: T) => void) =>
+    Object.defineProperty(el, name, { get, set })
+  prop('src', () => state.src, (v: string) => { state.src = v })
+  prop('volume', () => state.volume, (v: number) => { state.volume = v })
+  prop('paused', () => state.paused, (v: boolean) => { state.paused = v })
+  el.play = vi.fn(async () => { state.paused = false })
+  el.pause = vi.fn(() => { state.paused = true })
   el.load = vi.fn()
   return el
 }
