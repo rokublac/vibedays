@@ -74,4 +74,48 @@ describe('audiusQuery', () => {
   it('carries the mood through', () => {
     expect(audiusQuery(at('midday', 'rain'), genreById('lofi')).mood).toBe('Melancholy')
   })
+
+  it('labels the vibe for the "Playing from" line', () => {
+    expect(audiusQuery(at('evening'), genreById('lofi')).label).toBe('Cool lofi')
+    expect(audiusQuery(at('midday', 'rain'), genreById('jazz')).label).toBe('Melancholy jazz')
+  })
+})
+
+describe('the small hours', () => {
+  // Measured: Lo-Fi + Peaceful at 3am returns hip-hop instrumentals
+  // ("Corvette Cassette Remix", "Droplet"), not sleep music. The genre filter
+  // itself has to move, not just the mood.
+  it('leaves lofi behind for sleep ambient before midnight', () => {
+    const q = audiusQuery(at('late-night'), genreById('lofi'))
+    expect(q.genre).toBe('Ambient')
+    expect(q.query).toBe('sleep ambient')
+    expect(q.mood).toBe('Peaceful')
+  })
+
+  it('goes deeper still in the small hours', () => {
+    const q = audiusQuery(at('deep-night'), genreById('lofi'))
+    expect(q.genre).toBe('Ambient')
+    expect(q.query).toBe('zen meditation')
+  })
+
+  it('applies to ambient too, which should also get sleepier', () => {
+    expect(audiusQuery(at('deep-night'), genreById('ambient')).query).toBe('zen meditation')
+  })
+
+  it('says what it is actually playing, not the genre you picked', () => {
+    // "Peaceful lofi" over a zen meditation track would be a lie.
+    expect(audiusQuery(at('deep-night'), genreById('lofi')).label).toBe('Zen meditation')
+    expect(audiusQuery(at('late-night'), genreById('lofi')).label).toBe('Sleep ambient')
+  })
+
+  it('leaves jazz and classical alone — late-night jazz is a real thing', () => {
+    expect(audiusQuery(at('deep-night'), genreById('jazz')).genre).toBe('Jazz')
+    expect(audiusQuery(at('deep-night'), genreById('classical')).genre).toBe('Classical')
+    expect(audiusQuery(at('late-night'), genreById('synthwave')).query).toBe('synthwave')
+  })
+
+  it('ignores the weather at night, like the mood does', () => {
+    // Sleep outranks the sky; a storm at 3am is still sleep music.
+    expect(audiusQuery(at('deep-night', 'storm'), genreById('lofi')).query).toBe('zen meditation')
+  })
 })

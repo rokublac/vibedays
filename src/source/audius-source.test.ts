@@ -75,7 +75,7 @@ describe('createAudiusSource', () => {
     const sel = await make().source.resolve(CONDITIONS)
     // A pool has no permalink, so there is nothing to link the line to.
     expect(sel).toEqual({
-      id: 'Lo-Fi|Cool|0',
+      id: 'Lo-Fi||Cool|0',
       label: 'Cool lofi',
       url: null,
     })
@@ -97,7 +97,7 @@ describe('createAudiusSource', () => {
     const { source } = make()
     const first = await source.resolve(CONDITIONS)
     const second = await source.reroll(CONDITIONS)
-    expect(second!.id).toBe('Lo-Fi|Cool|100')
+    expect(second!.id).toBe('Lo-Fi||Cool|100')
     expect(second!.id).not.toBe(first!.id)
   })
 

@@ -18,12 +18,6 @@ export interface AudiusSourceDeps {
   audio?: HTMLAudioElement
 }
 
-/** "Cool lofi" — what the "Playing from" line says in place of a playlist. */
-function labelFor(c: Conditions, genre: Genre): string {
-  const { mood } = audiusQuery(c, genre)
-  return `${mood} ${genre.label.toLowerCase()}`
-}
-
 export function createAudiusSource(deps: AudiusSourceDeps): MusicSource {
   const pool: TrackPool = createTrackPool({
     search: deps.search,
@@ -52,11 +46,13 @@ export function createAudiusSource(deps: AudiusSourceDeps): MusicSource {
    */
   function selectionFor(c: Conditions, tracks: AudiusTrack[]): Selection | null {
     if (!tracks.length) return null
-    const genre = deps.genre()
-    const q = audiusQuery(c, genre)
+    const q = audiusQuery(c, deps.genre())
+    // Both night phases search the Ambient genre at the Peaceful mood, so the
+    // text is what tells "sleep ambient" from "zen meditation" — without it
+    // the two would share an id and read as the same selection.
     return {
-      id: `${q.genre ?? q.query}|${q.mood}|${pool.offset(c)}`,
-      label: labelFor(c, genre),
+      id: `${q.genre ?? ''}|${q.query ?? ''}|${q.mood}|${pool.offset(c)}`,
+      label: q.label ?? '',
       url: null,
     }
   }
