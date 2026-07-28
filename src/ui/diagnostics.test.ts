@@ -103,7 +103,7 @@ describe('formatDiagnostics trimming', () => {
     expect(labels).not.toContain('Matches')
   })
 
-  it('shows a Spotify failure on screen, since a phone has no console', () => {
+  it('shows a playback failure on screen, since a phone has no console', () => {
     const map = Object.fromEntries(
       formatDiagnostics({ ...full, issue: 'profile: 403 forbidden' }).map((r) => [r.label, r.value]),
     )

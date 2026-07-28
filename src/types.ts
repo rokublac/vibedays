@@ -47,3 +47,18 @@ export interface MatchResult {
   label: string
   palette: Palette
 }
+
+/** Where playback is coming from — the mood, playlist, or whatever the source calls it. */
+export interface PlaybackContext {
+  label: string
+  url: string | null
+}
+
+/** What the now-playing card needs, flattened out of whatever the source reports. */
+export interface TrackInfo {
+  name: string
+  artists: string
+  artworkUrl: string | null
+  url: string | null
+  context: PlaybackContext | null
+}

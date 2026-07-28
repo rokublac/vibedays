@@ -1,7 +1,7 @@
 import type { SunPhase, Season, WeatherKind, Coords } from '../types'
 
 export interface Diagnostics {
-  /** Last Spotify failure, surfaced on screen because phones have no console. */
+  /** Last playback failure, surfaced on screen because phones have no console. */
   issue: string | null
   now: Date
   phase: SunPhase

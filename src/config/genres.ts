@@ -1,28 +1,19 @@
 export interface Genre {
   id: string
   label: string
-  /** Replaces the anchor in every search query. */
-  anchor: string
 }
 
 /**
- * "Zen"/spa music is not a Spotify genre name; that space is tagged ambient,
- * new age, meditation or spa, so Ambient searches for all of it at once.
- */
-/**
- * Two rules for anchors, both enforced by tests in ui/genre.test.ts:
- * they must not repeat a word internally, since the query builder
- * de-duplicates and would silently shorten them; and they must not contain a
- * weather or season word, or the result ranker would reject its own matches.
+ * What the picker offers. How each one is actually searched for lives in
+ * audius/mood-map.ts, which maps these ids onto Audius genres — four map
+ * directly and synthwave, which Audius has no genre for, goes by text.
  */
 export const GENRES: Genre[] = [
-  { id: 'lofi', label: 'Lofi', anchor: 'lofi' },
-  { id: 'synthwave', label: 'Synthwave', anchor: 'synthwave retrowave' },
-  { id: 'jazz', label: 'Jazz', anchor: 'jazz' },
-  // Back to a bare anchor now Piano is gone: "orchestral" only existed to keep
-  // the two apart, and it was narrowing every rung for no reason.
-  { id: 'classical', label: 'Classical', anchor: 'classical' },
-  { id: 'ambient', label: 'Ambient', anchor: 'ambient meditation spa' },
+  { id: 'lofi', label: 'Lofi' },
+  { id: 'synthwave', label: 'Synthwave' },
+  { id: 'jazz', label: 'Jazz' },
+  { id: 'classical', label: 'Classical' },
+  { id: 'ambient', label: 'Ambient' },
 ]
 
 export const DEFAULT_GENRE_ID = 'lofi'

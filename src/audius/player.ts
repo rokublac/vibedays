@@ -1,4 +1,4 @@
-import type { TrackInfo, PlaybackContext } from '../spotify/player'
+import type { TrackInfo, PlaybackContext } from '../types'
 import type { AudiusTrack } from './types'
 import { streamUrl } from './search-api'
 

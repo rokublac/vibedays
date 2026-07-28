@@ -54,7 +54,7 @@ describe('without location', () => {
 
   it('shows the hint, and hides it once location arrives', () => {
     const root = document.createElement('div')
-    const controls = buildControls(root, { onRetryLocation: vi.fn(), onUseCity: vi.fn() })
+    const controls = buildControls(root, { onRetryLocation: vi.fn(), onUseCity: vi.fn(), onAbout: vi.fn() })
     const hint = root.querySelector<HTMLElement>('#location-hint')!
 
     controls.update(NO_GEO)
@@ -67,7 +67,7 @@ describe('without location', () => {
 
   it('offers naming a city, so a refused permission is not a dead end', () => {
     const root = document.createElement('div')
-    buildControls(root, { onRetryLocation: vi.fn(), onUseCity: vi.fn() }).update(NO_GEO)
+    buildControls(root, { onRetryLocation: vi.fn(), onUseCity: vi.fn(), onAbout: vi.fn() }).update(NO_GEO)
     expect(root.querySelector('#city-input')).not.toBeNull()
     expect(root.querySelector('#city-form')).not.toBeNull()
   })
@@ -75,7 +75,7 @@ describe('without location', () => {
   it('resolves the typed city', async () => {
     const root = document.createElement('div')
     const onUseCity = vi.fn().mockResolvedValue(undefined)
-    buildControls(root, { onRetryLocation: vi.fn(), onUseCity }).update(NO_GEO)
+    buildControls(root, { onRetryLocation: vi.fn(), onUseCity, onAbout: vi.fn() }).update(NO_GEO)
 
     root.querySelector<HTMLInputElement>('#city-input')!.value = '  Sydney  '
     root.querySelector<HTMLFormElement>('#city-form')!.dispatchEvent(
@@ -88,7 +88,7 @@ describe('without location', () => {
   it('ignores an empty submission', async () => {
     const root = document.createElement('div')
     const onUseCity = vi.fn()
-    buildControls(root, { onRetryLocation: vi.fn(), onUseCity }).update(NO_GEO)
+    buildControls(root, { onRetryLocation: vi.fn(), onUseCity, onAbout: vi.fn() }).update(NO_GEO)
     root.querySelector<HTMLFormElement>('#city-form')!.dispatchEvent(
       new Event('submit', { cancelable: true }),
     )
@@ -99,7 +99,7 @@ describe('without location', () => {
   it('says so when the city cannot be found, rather than failing silently', async () => {
     const root = document.createElement('div')
     const onUseCity = vi.fn().mockRejectedValue(new Error('city not found'))
-    buildControls(root, { onRetryLocation: vi.fn(), onUseCity }).update(NO_GEO)
+    buildControls(root, { onRetryLocation: vi.fn(), onUseCity, onAbout: vi.fn() }).update(NO_GEO)
 
     root.querySelector<HTMLInputElement>('#city-input')!.value = 'Nowhereville'
     root.querySelector<HTMLFormElement>('#city-form')!.dispatchEvent(
@@ -115,7 +115,7 @@ describe('without location', () => {
   it('re-enables the button after a failure, so it can be retried', async () => {
     const root = document.createElement('div')
     const onUseCity = vi.fn().mockRejectedValue(new Error('nope'))
-    buildControls(root, { onRetryLocation: vi.fn(), onUseCity }).update(NO_GEO)
+    buildControls(root, { onRetryLocation: vi.fn(), onUseCity, onAbout: vi.fn() }).update(NO_GEO)
     const submit = root.querySelector<HTMLButtonElement>('#city-form button[type=submit]')!
 
     root.querySelector<HTMLInputElement>('#city-input')!.value = 'X'
@@ -129,7 +129,7 @@ describe('without location', () => {
   it('offers a retry, for after the site permission is changed', () => {
     const root = document.createElement('div')
     const onRetryLocation = vi.fn()
-    buildControls(root, { onRetryLocation, onUseCity: vi.fn() }).update(NO_GEO)
+    buildControls(root, { onRetryLocation, onUseCity: vi.fn(), onAbout: vi.fn() }).update(NO_GEO)
     root.querySelector<HTMLButtonElement>('#location-retry')!.click()
     expect(onRetryLocation).toHaveBeenCalledTimes(1)
   })
@@ -138,7 +138,7 @@ describe('without location', () => {
 describe('buildControls', () => {
   it('renders the headline and conditions into separate lines of the readout', () => {
     const root = document.createElement('div')
-    const controls = buildControls(root, { onRetryLocation: vi.fn(), onUseCity: vi.fn() })
+    const controls = buildControls(root, { onRetryLocation: vi.fn(), onUseCity: vi.fn(), onAbout: vi.fn() })
     controls.update(C)
     expect(root.querySelector('.readout-mood')!.textContent).toBe('Golden hour')
     expect(root.querySelector('.readout-conditions')!.textContent).toBe('clear · cold · winter')
@@ -148,7 +148,7 @@ describe('buildControls', () => {
 
   it('renders no override selects', () => {
     const root = document.createElement('div')
-    buildControls(root, { onRetryLocation: vi.fn(), onUseCity: vi.fn() })
+    buildControls(root, { onRetryLocation: vi.fn(), onUseCity: vi.fn(), onAbout: vi.fn() })
     expect(root.querySelectorAll('select')).toHaveLength(0)
   })
 })

@@ -20,6 +20,7 @@ export function formatConditions(c: Conditions): string {
 
 export interface ControlsCallbacks {
   onRetryLocation(): void
+  onAbout(): void
   /** Resolve a typed city name to coordinates. Rejects if it cannot be found. */
   onUseCity(name: string): Promise<void>
 }
@@ -32,9 +33,8 @@ export function buildControls(
     <div class="controls-head">
       <span class="readout-conditions"></span>
       <div class="head-actions">
-        <div id="source-slot"></div>
         <div id="genre-slot"></div>
-        <div id="account-slot"></div>
+        <button id="about-btn" class="genre-chip" type="button">About</button>
       </div>
     </div>
     <p id="readout">
@@ -63,6 +63,7 @@ export function buildControls(
   const hint = root.querySelector<HTMLElement>('#location-hint')!
 
   root.querySelector('#location-retry')!.addEventListener('click', () => cb.onRetryLocation())
+  root.querySelector('#about-btn')!.addEventListener('click', () => cb.onAbout())
 
   const cityForm = root.querySelector<HTMLFormElement>('#city-form')!
   const cityInput = root.querySelector<HTMLInputElement>('#city-input')!

@@ -1,12 +1,12 @@
 import type { Conditions } from '../types'
-import type { TrackInfo } from '../spotify/player'
+import type { TrackInfo } from '../types'
 
-export type SourceId = 'audius' | 'spotify'
+export type SourceId = 'audius'
 
 /**
- * What a source picked to play: a Spotify playlist today, an Audius track pool
- * later. Deliberately not a playlist — the free source owns its own queue, so
- * "the thing that is playing" is the only shape both can agree on.
+ * What a source picked to play — an Audius track pool. Deliberately not a
+ * playlist: the source owns its own queue, so "the thing that is playing" is
+ * the only shape a source has to agree on.
  */
 export interface Selection {
   id: string
@@ -16,12 +16,7 @@ export interface Selection {
   url: string | null
 }
 
-/**
- * 'account' means the plan cannot stream (Spotify free tier). It is NOT a bad
- * token and must never be treated like one: logging the user out on account
- * failure loops them back to the login screen forever.
- */
-export type SourceFailure = 'auth' | 'account' | 'init' | 'network'
+export type SourceFailure = 'init' | 'network'
 
 export interface SourceCallbacks {
   onState(track: TrackInfo | null, paused: boolean): void
@@ -42,7 +37,7 @@ export interface MusicSource {
   activate(): Promise<void>
   /**
    * Begin playback. The caller has already ramped the volume to 0 — the fade
-   * lives in main.ts so the two sources cannot drift apart on it.
+   * lives in main.ts, so a second source added later cannot drift from it.
    *
    * One caller at a time: main guards against a repeat start of the same
    * selection, because that guard has to wrap the crossfade too.

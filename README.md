@@ -5,52 +5,25 @@ Music that fits your day.
 ![vibedays playing a late night lofi playlist, with the current phase, weather and daylight hours shown](docs/screenshot.jpg)
 
 A static web player that reads the sun and the weather where you are, then finds
-a playlist on Spotify to match. When the day changes, so does the music.
+music to match. When the day changes, so does the music.
 
 At 6pm on a clear winter evening it plays something calm and unwinding. At 2am it
-plays something ambient. When it starts raining it changes again. Nobody picks
-the playlists, and there is nothing to configure beyond signing in.
+plays sleep music. When it starts raining it changes again. Nobody picks the
+tracks, and there is nothing to configure — no account, no sign-in.
 
 Pick a genre (lofi, synthwave, jazz, classical or ambient) and the whole system
 follows it.
 
-No backend, no database, no API keys. It runs entirely in the browser.
+Music comes from [Audius](https://audius.co), an open catalogue of independent
+artists whose public API needs no key and no login.
+
+No backend, no database, no API keys, no accounts. It runs entirely in the
+browser.
 
 ## What you need
 
-- **Spotify Premium.** Playback uses the Web Playback SDK, which does not work on
-  free accounts. This applies to everyone who uses your copy, not just you.
-- **Node 18 or newer.**
-- **A Spotify app**, free to create. See below.
-
-## Read this before you plan anything public
-
-Spotify apps start in **development mode**, which allows **5 named accounts**.
-Every person who signs in has to be added by email in the dashboard first.
-Anyone else gets a 403 and cannot use the app at all.
-
-Lifting that needs **extended quota mode**, and since May 2025 the criteria are a
-registered business entity, a launched service, and at least 250,000 monthly
-active users. There is no tier in between.
-
-So a hosted instance anyone can sign into is not possible with Spotify. What
-works is this: **each person runs their own copy with their own Spotify app**,
-and gets their own five accounts. That is why the Client ID is an environment
-variable rather than committed.
-
-If you want a genuinely public hosted app, the music provider has to change. The
-conditions engine knows nothing about Spotify, so it is a contained job:
-everything Spotify-specific lives in `src/spotify/`.
-
-### Adding people
-
-Dashboard, your app, **Settings**, then **User Management**. Add a name and the
-email address on their Spotify account, which is not always the address they
-normally use; they can check it at
-[spotify.com/account](https://www.spotify.com/account).
-
-You are one of the five automatically, as the app owner. If the account you use
-day to day is not the one that created the app, it takes one of the other four.
+- **Node 22 or newer**, for the build.
+- Nothing else. No account, no API key, no app registration.
 
 ## Setup
 
@@ -62,31 +35,7 @@ cd vibedays
 npm install
 ```
 
-**2. Create a Spotify app**
-
-Go to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-and create an app. Under settings, add this Redirect URI exactly:
-
-```
-http://127.0.0.1:5173/
-```
-
-Copy the Client ID. It is a public identifier, not a secret, so there is nothing
-here you need to keep private.
-
-**3. Add your Client ID**
-
-```bash
-cp .env.example .env
-```
-
-Put your Client ID in `.env`:
-
-```
-VITE_SPOTIFY_CLIENT_ID=your_client_id_here
-```
-
-**4. Run it**
+**2. Run it**
 
 ```bash
 npm run dev
@@ -95,6 +44,8 @@ npm run dev
 Open http://127.0.0.1:5173 and allow location access when asked. Location is used
 only to look up your sunrise, sunset and weather; it never leaves your browser
 except as coordinates sent to Open-Meteo.
+
+That is the whole setup. `.env` is optional and only turns on debug logging.
 
 ## Commands
 
@@ -117,21 +68,12 @@ npx wrangler deploy
 
 Change `name` in `wrangler.jsonc` to your own worker name first.
 
-Two things people get wrong on the first deploy:
-
-**Set `VITE_SPOTIFY_CLIENT_ID` in the host's build environment.** Vite inlines it
-at build time, and `.env` is gitignored, so a hosted build without it produces a
-site that only shows "Setup needed". The value is public either way; it ends up in
-the JavaScript bundle regardless of whether you store it as a secret.
-
-**Register the deployed URL as a Redirect URI**, exactly, with the trailing
-slash: `https://your-domain/`. The app derives it from `window.location.origin`,
-so every origin you serve from needs its own entry. Preview deploys get their own
-subdomains and will not work unless you add them too.
+There is nothing else to configure — no build-time secrets, no redirect URIs to
+register. A fresh clone deploys and works.
 
 ## When something goes wrong
 
-The diagnostics panel at the bottom grows an **Issue** row whenever a Spotify call
+The diagnostics panel at the bottom grows an **Issue** row whenever a playback call
 fails, showing the status code. That exists because the failures worth debugging
 happen on phones and tablets, where there is no console to open.
 
@@ -155,11 +97,11 @@ Open-Meteo: sunrise, sunset, cloud, precipitation, temperature
         ↓
 phase + condition bands
         ↓
-composed search query, most specific first
+genre + mood + one vibe word ("glow", "rain", "sleep music")
         ↓
-Spotify search, filtered for results that contradict the conditions
+Audius search, filtered to streamable tracks of a playable length
         ↓
-playback via the Web Playback SDK
+playback through an <audio> element, queue owned in the browser
 ```
 
 ### Phases
@@ -196,35 +138,42 @@ and guessing it would report summer during an Australian winter.
 | Temperature | freezing, cold, mild, warm, hot (feels-like, so wind chill counts) |
 | Season | hemisphere aware |
 
-### The query ladder
+### How a vibe is chosen
 
-Each band contributes search terms in priority order. The search starts with the
-most specific query and drops the least important term until it finds enough
-playlists:
+Every hour has its own imagery rather than its own mood. This is measured, not
+guessed: Audius track titles are full of concrete things and almost empty of
+feelings. "glow" returns 40 tracks and "neon" 36, while "hopeful" returns 3,
+"emotive" 2 and "wistful" 1.
 
-```
-lofi evening chill unwind rainy overcast grey cold winter
-lofi evening chill unwind rainy overcast grey cold
-lofi evening chill unwind rainy overcast grey
-lofi evening chill unwind rainy
-lofi evening chill unwind
-lofi evening chill          <- the phase itself then shortens
-lofi evening
-lofi                        <- last resort
-```
+| Hour | Searches for |
+| --- | --- |
+| dawn | `soft` |
+| sunrise golden | `glow` |
+| morning | `morning`, Easygoing |
+| midday | `sunny` |
+| afternoon | `chill`, Easygoing |
+| sunset golden | `nostalgic` |
+| blue hour | `neon` |
+| evening | `night`, Cool |
+| late night | Ambient, `sleep ambient` |
+| deep night | Ambient, `sleep music` |
 
-Bands that add nothing (`mild` temperature, `hazy` cloud) contribute no term, so
-an unremarkable day gets a short query instead of a padded one.
+Some hours pair the word with a mood and some deliberately do not. Mood and text
+together intersect to almost nothing unless the mood is a common one: `glow`
+alone is 40 tracks, but Yearning + `glow` is zero.
 
-The phase shortening at the end matters for genres whose playlists are not named
-after moods. Lofi playlists really are called things like "lofi evening chill",
-so an early rung hits. Jazz playlists are not, so without those last steps every
-mood rung would fail at once and it would fall straight to the bare genre.
+After dark the genre itself moves. Lo-Fi at 3am returns hip-hop instrumentals,
+not sleep music, so the small hours search Ambient instead — for whichever genre
+you picked, unless you picked Jazz or Classical, where late-night jazz and
+nocturnes are a real thing worth keeping.
 
-Spotify's playlist search matches loosely, so a query for a clear night will
-happily return a playlist called "lofi sleep, lofi rain". Results whose names
-advertise weather or a season that is not happening get set aside, and are only
-used if nothing else comes back.
+Rain takes the one text slot when it is raining, and the hour keeps its mood, so
+a wet morning and a wet evening are both rainy without being identical. Weather
+with no searchable word — storm, fog, snow, cloud — can only be felt through the
+mood, so it takes that instead.
+
+There is only one text slot. Two words collapse the pool: `rain morning` returns
+a single track.
 
 ### Colours
 
@@ -242,11 +191,11 @@ suite goes red, the colour is genuinely unreadable for somebody.
 ```
 src/
   conditions/   sun phases, seasons, weather fetch, condition bands
-  search/       query ladder, contradiction filtering
-  spotify/      auth (PKCE), search, playback, Web Playback SDK, volume fades
+  audius/       search, vibe mapping, track pool, audio playback
+  source/       the MusicSource contract and its implementation
   matcher/      conditions to palette
   ui/           rendering, all DOM in here
-  config/       genres, Spotify app config, saved city
+  config/       genres, volume, saved city
 ```
 
 Tests sit next to the code they cover. There is no framework and no state
@@ -298,8 +247,10 @@ search engines your page is a duplicate.
 
 Your coordinates go to [Open-Meteo](https://open-meteo.com) for weather and sun
 times, and to [BigDataCloud](https://www.bigdatacloud.com) to turn them into a
-place name for the diagnostics panel. Both are free and need no key. Spotify tokens are held in your browser's local storage and
-never sent anywhere except Spotify. There is no analytics and no server.
+place name for the diagnostics panel, and Audius for the music. All three are
+free and need no key. Your genre, volume and saved city are held in your
+browser's local storage and are never sent anywhere. There are no accounts, no
+analytics and no server.
 
 ## Licence
 

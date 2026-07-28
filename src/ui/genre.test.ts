@@ -1,8 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { buildGenrePicker } from './genre'
 import { GENRES, genreById } from '../config/genres'
-import { dedupeWords } from '../search/query'
-import { contradictions, nameContradicts } from '../search/rank'
+import { audiusQuery } from '../audius/mood-map'
 import type { Conditions } from '../types'
 
 const mount = () => {
@@ -82,44 +81,27 @@ describe('buildGenrePicker', () => {
 })
 
 describe('genre definitions', () => {
-  it('anchors are distinct, so switching actually changes the search', () => {
-    const anchors = GENRES.map((g) => g.anchor)
-    expect(new Set(anchors).size).toBe(anchors.length)
-  })
-
   it('falls back to lofi for an unknown or missing id', () => {
     expect(genreById('nonsense').id).toBe('lofi')
     expect(genreById(null).id).toBe('lofi')
     expect(genreById(undefined).id).toBe('lofi')
   })
 
-  it('never repeats a word inside an anchor, which the builder would collapse', () => {
-    // "house deep house" would become "house deep" and lose the genre.
-    for (const g of GENRES) expect(dedupeWords(g.anchor)).toBe(g.anchor)
-  })
-
-  it('never contains a word the ranker would reject its own results for', () => {
-    // A "rain forest" anchor would be filtered out on a clear day: the app
-    // would search for something it then refuses to play.
-    const samples: Conditions[] = [
-      { located: true, phase: 'midday', season: 'summer', weather: 'clear',
-        cloud: 'clear', precip: 'none', temp: 'warm' },
-      { located: true, phase: 'deep-night', season: 'winter', weather: 'rain',
-        cloud: 'overcast', precip: 'steady', temp: 'freezing' },
-    ]
-    for (const c of samples) {
-      const words = contradictions(c)
-      for (const g of GENRES) {
-        expect({ genre: g.id, contradicts: nameContradicts(g.anchor, words) })
-          .toEqual({ genre: g.id, contradicts: false })
-      }
+  it('every genre resolves to something searchable', () => {
+    // A genre the query builder does not know would silently fall back to
+    // lofi, so the picker would show a choice that does nothing.
+    const c: Conditions = {
+      located: true, phase: 'midday', season: 'summer', weather: 'clear',
+      cloud: 'clear', precip: 'none', temp: 'warm',
+    }
+    for (const g of GENRES) {
+      const q = audiusQuery(c, g)
+      expect(q.genre ?? q.query).toBeTruthy()
     }
   })
 
-  it('maps zen and spa music onto ambient, which Spotify actually tags', () => {
-    const ambient = genreById('ambient')
-    expect(ambient.anchor).toContain('ambient')
-    expect(ambient.anchor).toContain('spa')
-    expect(ambient.anchor).toContain('meditation')
+  it('gives every genre a distinct label for the picker', () => {
+    const labels = GENRES.map((g) => g.label)
+    expect(new Set(labels).size).toBe(labels.length)
   })
 })

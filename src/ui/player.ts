@@ -1,7 +1,5 @@
-import type { TrackInfo } from '../spotify/player'
+import type { TrackInfo } from '../types'
 import { fadeSwap, type SwapOptions } from './fade-swap'
-
-export type AlternativesKind = 'playlist' | 'batch'
 
 export const IDLE_PROMPT = 'Press play to start'
 export const BUSY_PROMPT = 'Finding a playlist…'
@@ -21,7 +19,7 @@ export function buildPlayer(
   swap: SwapOptions = {},
 ): {
   update(track: TrackInfo | null, paused: boolean): void
-  setAlternatives(count: number, of?: AlternativesKind): void
+  setAlternatives(count: number): void
   /** Replaces the idle prompt with an explanation; null restores it. */
   setNotice(text: string | null): void
   setBusy(busy: boolean): void
@@ -90,8 +88,6 @@ export function buildPlayer(
   /** The last track actually rendered, so the context row can be restored. */
   let lastTrack: TrackInfo | null = null
   let alternatives = 0
-  /** 'playlist' counts alternatives; 'batch' just offers another page. */
-  let kind: AlternativesKind = 'playlist'
   /** Why there is nothing playing, when it is not simply that nobody pressed play. */
   let notice: string | null = null
 
@@ -100,24 +96,15 @@ export function buildPlayer(
    * "Finding a playlist…" is visual noise saying the same thing twice. It stays
    * disabled as well, so it cannot be activated in the frame before it hides.
    *
-   * The copy is source-dependent. Spotify walks a pool of playlists, so the
-   * count is meaningful; the free source owns a flat pool of tracks and pages
-   * for a fresh batch, where "3 other playlists" would be a lie.
+   * The source owns a flat pool of tracks and pages for a fresh batch, so the
+   * count is not "other playlists" — it is how much there is to page through.
    */
   function syncReroll() {
     reroll.hidden = busy
-    if (kind === 'batch') {
-      reroll.disabled = busy || alternatives === 0
-      reroll.title = alternatives
-        ? 'Load a different batch for these conditions'
-        : 'Nothing found for these conditions'
-      return
-    }
-    const others = Math.max(0, alternatives - 1)
-    reroll.disabled = busy || others === 0
-    reroll.title = others
-      ? `Switch to one of ${others} other playlist${others === 1 ? '' : 's'} for these conditions`
-      : 'No other playlists found for these conditions'
+    reroll.disabled = busy || alternatives === 0
+    reroll.title = alternatives
+      ? 'Load a different batch for these conditions'
+      : 'Nothing found for these conditions'
   }
 
   const trackId = (t: TrackInfo | null) => (t ? `${t.url ?? t.name}|${t.artists}` : null)
@@ -203,9 +190,8 @@ export function buildPlayer(
       if (!busy) empty.textContent = text ?? IDLE_PROMPT
     },
 
-    setAlternatives(count: number, of: AlternativesKind = 'playlist') {
+    setAlternatives(count: number) {
       alternatives = count
-      kind = of
       syncReroll()
     },
   }
@@ -253,8 +239,8 @@ export function buildPlayer(
       link.setAttribute(
         'aria-label',
         track.artists
-          ? `Open ${track.name} by ${track.artists} in Spotify`
-          : `Open ${track.name} in Spotify`,
+          ? `Open ${track.name} by ${track.artists} in a new tab`
+          : `Open ${track.name} in a new tab`,
       )
     } else {
       link.removeAttribute('href')

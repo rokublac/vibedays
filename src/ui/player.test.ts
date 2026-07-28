@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { buildPlayer, IDLE_PROMPT, BUSY_PROMPT, SWITCHING_STATUS } from './player'
-import type { TrackInfo } from '../spotify/player'
+import type { TrackInfo } from '../types'
 
 const cb = () => ({ onToggle: vi.fn(), onNext: vi.fn(), onPrev: vi.fn(), onReroll: vi.fn() })
 // Run the fade swap synchronously so assertions see the settled DOM.
@@ -10,8 +10,8 @@ const TRACK: TrackInfo = {
   name: 'Tonight',
   artists: 'Brad Beal',
   artworkUrl: 'art.jpg',
-  url: 'https://open.spotify.com/track/abc123',
-  context: { label: 'Late night lofi', url: 'https://open.spotify.com/playlist/p1' },
+  url: 'https://audius.co/bradbeal/tonight',
+  context: { label: 'Late night lofi', url: 'https://audius.co/late-night-lofi' },
 }
 
 describe('buildPlayer', () => {
@@ -45,8 +45,8 @@ describe('buildPlayer', () => {
     expect(link.hidden).toBe(false)
     expect(root.querySelector('.track-name')!.textContent).toBe('Tonight')
     expect(root.querySelector('.track-artist')!.textContent).toBe('Brad Beal')
-    expect(link.getAttribute('href')).toBe('https://open.spotify.com/track/abc123')
-    expect(link.getAttribute('aria-label')).toBe('Open Tonight by Brad Beal in Spotify')
+    expect(link.getAttribute('href')).toBe('https://audius.co/bradbeal/tonight')
+    expect(link.getAttribute('aria-label')).toBe('Open Tonight by Brad Beal in a new tab')
     expect(root.querySelector<HTMLImageElement>('.track-art')!.getAttribute('src')).toBe('art.jpg')
   })
 
@@ -137,7 +137,7 @@ describe('buildPlayer', () => {
     player.update({ ...TRACK, url: null }, false)
     player.update(TRACK, false)
     const link = root.querySelector<HTMLAnchorElement>('#now-playing')!
-    expect(link.getAttribute('href')).toBe('https://open.spotify.com/track/abc123')
+    expect(link.getAttribute('href')).toBe('https://audius.co/bradbeal/tonight')
     expect(link.hasAttribute('aria-disabled')).toBe(false)
   })
 
@@ -156,7 +156,7 @@ describe('buildPlayer', () => {
     const line = root.querySelector<HTMLAnchorElement>('#playing-from')!
     expect(root.querySelector<HTMLDivElement>('.context-row')!.hidden).toBe(false)
     expect(root.querySelector('.context-name')!.textContent).toBe('Late night lofi')
-    expect(line.getAttribute('href')).toBe('https://open.spotify.com/playlist/p1')
+    expect(line.getAttribute('href')).toBe('https://audius.co/late-night-lofi')
   })
 
   it('hides the source line when the SDK reports no context', () => {
@@ -252,43 +252,32 @@ describe('buildPlayer', () => {
     expect(btn.disabled).toBe(false)
   })
 
-  it('stays visible but disabled when there is simply nothing to switch to', () => {
+  it('offers another batch whenever the pool has anything in it', () => {
     const root = document.createElement('div')
     const player = buildPlayer(root, cb(), NOW)
     player.update(TRACK, false)
-    player.setAlternatives(1)
     const btn = root.querySelector<HTMLButtonElement>('#reroll')!
+
+    player.setAlternatives(30)
     expect(btn.hidden).toBe(false)
-    expect(btn.disabled).toBe(true)
+    expect(btn.disabled).toBe(false)
+    expect(btn.title).toContain('different batch')
   })
 
-  it('disables the switch button when there is nothing else to switch to', () => {
+  it('disables the switch button when nothing was found at all', () => {
+    // The pool is a flat list of tracks, so one track is still a pool worth
+    // paging past — only an empty one leaves nothing to do.
     const root = document.createElement('div')
     const player = buildPlayer(root, cb(), NOW)
     player.update(TRACK, false)
     const btn = root.querySelector<HTMLButtonElement>('#reroll')!
-
-    player.setAlternatives(1)
-    expect(btn.disabled).toBe(true)
-    expect(btn.title).toContain('No other playlists')
 
     player.setAlternatives(0)
     expect(btn.disabled).toBe(true)
-  })
+    expect(btn.title).toContain('Nothing found')
 
-  it('enables it and says how many alternatives there are', () => {
-    const root = document.createElement('div')
-    const player = buildPlayer(root, cb(), NOW)
-    player.update(TRACK, false)
-    const btn = root.querySelector<HTMLButtonElement>('#reroll')!
-
-    player.setAlternatives(7)
+    player.setAlternatives(1)
     expect(btn.disabled).toBe(false)
-    expect(btn.title).toContain('6 other playlists')
-
-    player.setAlternatives(2)
-    expect(btn.title).toContain('1 other playlist')
-    expect(btn.title).not.toContain('playlists')
   })
 
   it('re-enables when a later condition has a bigger pool', () => {
@@ -342,7 +331,7 @@ describe('buildPlayer', () => {
     const schedule = vi.fn((fn: () => void) => fn())
     const player = buildPlayer(root, cb(), { schedule })
     player.update(TRACK, false)
-    player.update({ ...TRACK, name: 'Another', url: 'https://open.spotify.com/track/zzz' }, false)
+    player.update({ ...TRACK, name: 'Another', url: 'https://audius.co/someone/another' }, false)
     expect(schedule).toHaveBeenCalledTimes(1)
     expect(root.querySelector('.track-name')!.textContent).toBe('Another')
   })
@@ -374,7 +363,7 @@ describe('buildPlayer', () => {
     expect(bar.classList.contains('is-empty')).toBe(false)
     expect(root.querySelector<HTMLAnchorElement>('#now-playing')!.hidden).toBe(false)
 
-    const next = { ...TRACK, name: 'Another', url: 'https://open.spotify.com/track/zzz' }
+    const next = { ...TRACK, name: 'Another', url: 'https://audius.co/someone/another' }
     player.update(next, false)
     player.setBusy(false)
     expect(root.querySelector('.track-name')!.textContent).toBe('Another')

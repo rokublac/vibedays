@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
-  buildAbout, ABOUT_PARAGRAPHS, ABOUT_TITLE, PREMIUM_URL, AUTHOR, AUTHOR_URL,
+  buildAbout, ABOUT_PARAGRAPHS, ABOUT_TITLE, AUDIUS_URL, AUTHOR, AUTHOR_URL,
 } from './about'
 
 const mount = () => {
@@ -24,7 +24,7 @@ describe('buildAbout', () => {
     expect(text).toContain('sun')
     expect(text).toContain('weather')
     expect(text).toContain('location')
-    expect(text).toContain('Premium')
+    expect(text).toContain('Audius')
   })
 
   it('is plain and free of em dashes', () => {
@@ -61,10 +61,10 @@ describe('buildAbout', () => {
     expect(paragraphs).toHaveLength(ABOUT_PARAGRAPHS.length)
   })
 
-  it('links the Premium mention to Spotify plans', () => {
+  it('links the catalogue mention to Audius', () => {
     const link = mount().root.querySelector<HTMLAnchorElement>('.text-link')!
-    expect(link.getAttribute('href')).toBe(PREMIUM_URL)
-    expect(link.textContent).toBe('Premium account')
+    expect(link.getAttribute('href')).toBe(AUDIUS_URL)
+    expect(link.textContent).toBe('Audius')
   })
 
   it('opens the plans link in a new tab without leaking the referrer', () => {
