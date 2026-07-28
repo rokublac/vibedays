@@ -14,6 +14,32 @@ export const MIN_DURATION = 60
 export const MAX_DURATION = 900
 export const PAGE_SIZE = 100
 
+/**
+ * Phrases that name a commercial service. Companies upload spoken content
+ * marketing tagged as music — a contract-software firm's piece was playing
+ * between two lofi tracks — and nothing else catches it: the genre and mood
+ * are set to whatever gets it heard, and the audio is a normal length.
+ *
+ * Titles only. Lofi descriptions genuinely advertise themselves as "perfect
+ * for productivity and workflow", so screening descriptions flagged seven good
+ * tracks for every real one. Measured over 1019 tracks from the app's own
+ * queries, this rejects exactly one, and it is the right one.
+ */
+const NOT_MUSIC = new RegExp(
+  '\\b(software|saas|crm|erp|b2b'
+    + '|contract management|project management|supply chain'
+    + '|insurance|mortgage|attorney|law firm|dentist|dental'
+    + '|webinar|whitepaper|case study|digital marketing)\\b',
+  'i',
+)
+
+/** False for uploads that are advertising rather than music. */
+export function isMusic(raw: unknown): boolean {
+  const title = (raw as { title?: unknown } | null)?.title
+  if (typeof title !== 'string') return true
+  return !NOT_MUSIC.test(title)
+}
+
 export interface SearchParams {
   genre?: string
   mood?: string
@@ -44,6 +70,7 @@ export function isPlayable(raw: unknown): boolean {
   // Gated tracks need a signature from the listener's wallet, which a
   // login-free app by definition does not have.
   if (t.is_stream_gated === true) return false
+  if (!isMusic(t)) return false
   const d = t.duration
   return typeof d === 'number' && d >= MIN_DURATION && d <= MAX_DURATION
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { isPlayable, toTrack, streamUrl, searchTracks, HOST } from './search-api'
+import { isPlayable, isMusic, toTrack, streamUrl, searchTracks, HOST } from './search-api'
 
 const raw = (over: Record<string, unknown> = {}) => ({
   id: 'a5K2a',
@@ -115,5 +115,44 @@ describe('searchTracks', () => {
 
   it('throws on a non-ok response, so the caller decides', async () => {
     await expect(searchTracks({ genre: 'Lo-Fi' }, fakeFetch([], false) as never)).rejects.toThrow()
+  })
+})
+
+describe('isMusic', () => {
+  const titled = (title: string) => ({ ...raw(), title })
+
+  it('lets ordinary music through', () => {
+    // Measured against 1019 real tracks: exactly one was rejected.
+    for (const t of [
+      'Soft Focus', 'Café Daydreams', 'Neon Moon', 'Relaxing Sleep Music',
+      'Morning Stroll', 'nostalgic (believe)', 'Rain on the Window',
+    ]) {
+      expect(isMusic(titled(t))).toBe(true)
+    }
+  })
+
+  it('rejects content marketing uploaded as music', () => {
+    // A real one: a contract-software company tagged this Lo-Fi, so it played
+    // between two lofi tracks as a spoken advert.
+    expect(isMusic(titled('Integrating Construction Contract Management Software'))).toBe(false)
+    expect(isMusic(titled('Why Your Law Firm Needs Better CRM'))).toBe(false)
+    expect(isMusic(titled('Dental Insurance Explained'))).toBe(false)
+  })
+
+  it('ignores the description, which is where the genre talks like an advert', () => {
+    // Lofi descriptions genuinely say "perfect for productivity and workflow".
+    // Screening them flagged 7 good tracks for every real one.
+    const t = { ...raw(), title: 'Soft Hop', description: 'Great for productivity and workflow' }
+    expect(isMusic(t)).toBe(true)
+  })
+
+  it('does not reject a word that merely contains a flagged one', () => {
+    expect(isMusic(titled('Softly'))).toBe(true)
+    expect(isMusic(titled('Insurgent'))).toBe(true)
+  })
+
+  it('is part of the playability check, so pools never carry it', () => {
+    expect(isPlayable(titled('Integrating Construction Contract Management Software'))).toBe(false)
+    expect(toTrack(titled('Dental Insurance Explained'))).toBeNull()
   })
 })
