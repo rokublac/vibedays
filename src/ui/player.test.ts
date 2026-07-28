@@ -421,3 +421,36 @@ describe('buildPlayer', () => {
     expect(main.querySelector('#now-playing')).not.toBeNull()
   })
 })
+
+describe('notices', () => {
+  it('explains a failure instead of silently reverting to the prompt', () => {
+    // Pressing play and landing back on "Press play to start" with no reason
+    // reads as a broken button.
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    const empty = root.querySelector<HTMLSpanElement>('.track-empty')!
+    player.setBusy(true)
+    player.setNotice('Could not reach the music service. Try again.')
+    player.setBusy(false)
+    expect(empty.textContent).toBe('Could not reach the music service. Try again.')
+  })
+
+  it('goes back to the normal prompt once cleared', () => {
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    const empty = root.querySelector<HTMLSpanElement>('.track-empty')!
+    player.setNotice('nope')
+    player.setNotice(null)
+    player.setBusy(false)
+    expect(empty.textContent).toBe(IDLE_PROMPT)
+  })
+
+  it('never lets a notice cover the busy message', () => {
+    const root = document.createElement('div')
+    const player = buildPlayer(root, cb(), NOW)
+    const empty = root.querySelector<HTMLSpanElement>('.track-empty')!
+    player.setNotice('nope')
+    player.setBusy(true)
+    expect(empty.textContent).toBe(BUSY_PROMPT)
+  })
+})

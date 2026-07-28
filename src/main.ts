@@ -210,8 +210,16 @@ async function boot() {
       debug('resolved selection', sel)
       if (!sel) {
         console.error(`no playable selection found for: ${key}`)
+        // Reverting to "Press play to start" with no reason reads as a broken
+        // button, so say what happened.
+        playerUI.setNotice(
+          source.id === 'audius'
+            ? 'Could not reach the music service. Press play to try again.'
+            : 'Could not find a playlist for right now. Press play to try again.',
+        )
         return
       }
+      playerUI.setNotice(null)
       await startSelection(sel)
       if (currentSelection?.id === sel.id) playingKey = key
       playerUI.setAlternatives(source.alternatives(c), alternativesKind())
@@ -268,6 +276,7 @@ async function boot() {
       fadeFraction = 1
       await source.setVolume(effective(volume))
       playerUI.setAlternatives(0, alternativesKind())
+      playerUI.setNotice(null)
 
       if (id === 'audius') {
         // Whatever the Spotify session was complaining about is no longer in

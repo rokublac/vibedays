@@ -22,6 +22,8 @@ export function buildPlayer(
 ): {
   update(track: TrackInfo | null, paused: boolean): void
   setAlternatives(count: number, of?: AlternativesKind): void
+  /** Replaces the idle prompt with an explanation; null restores it. */
+  setNotice(text: string | null): void
   setBusy(busy: boolean): void
 } {
   // The transport can't nest inside the <a> (invalid, and the clicks would
@@ -90,6 +92,8 @@ export function buildPlayer(
   let alternatives = 0
   /** 'playlist' counts alternatives; 'batch' just offers another page. */
   let kind: AlternativesKind = 'playlist'
+  /** Why there is nothing playing, when it is not simply that nobody pressed play. */
+  let notice: string | null = null
 
   /**
    * Hidden entirely while a switch is running: a greyed-out button next to
@@ -168,7 +172,9 @@ export function buildPlayer(
     setBusy(next: boolean) {
       busy = next
       bar.classList.toggle('is-busy', next)
-      empty.textContent = next ? BUSY_PROMPT : IDLE_PROMPT
+      // The busy message always wins: a stale notice sitting there while a
+      // search is visibly running would contradict it.
+      empty.textContent = next ? BUSY_PROMPT : (notice ?? IDLE_PROMPT)
       syncReroll()
 
       // With a track already on screen the empty prompt is hidden, so the
@@ -190,6 +196,11 @@ export function buildPlayer(
         held = null
         apply(pending.track)
       }
+    },
+
+    setNotice(text: string | null) {
+      notice = text
+      if (!busy) empty.textContent = text ?? IDLE_PROMPT
     },
 
     setAlternatives(count: number, of: AlternativesKind = 'playlist') {
