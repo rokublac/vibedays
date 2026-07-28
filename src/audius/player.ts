@@ -9,6 +9,10 @@ import { streamUrl } from './search-api'
  */
 export const MAX_CONSECUTIVE_ERRORS = 5
 
+/** An empty WAV. Exists only to give the autoplay unlock something to play. */
+export const SILENT_WAV =
+  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA='
+
 export interface AudiusPlayerCallbacks {
   onState(track: TrackInfo | null, paused: boolean): void
   onError(message: string): void
@@ -18,6 +22,7 @@ export interface AudiusPlayerHandle {
   setQueue(tracks: AudiusTrack[]): void
   /** The "Playing from" line; the source supplies the mood label. */
   setContext(context: PlaybackContext | null): void
+  /** Requests playback. Resolves once asked, not once audible — see load(). */
   play(): Promise<void>
   activate(): Promise<void>
   togglePlay(): void
@@ -53,22 +58,31 @@ export function createAudiusPlayer(
     cb.onState(t ? toTrackInfo(t) : null, el.paused)
   }
 
-  /** Points the element at the current track. Playing is the caller's choice. */
-  function load(andPlay: boolean): Promise<void> {
+  /**
+   * Points the element at the current track and asks it to play.
+   *
+   * Deliberately does NOT await el.play(): that promise resolves when audio
+   * actually begins, which may be seconds away or never — a stalled load or a
+   * blocked autoplay leaves it pending. Awaiting it wedged main's busy counter
+   * on, disabling every control for the rest of the session. Whether playback
+   * really started is reported through the 'playing' and 'error' events, which
+   * is what they are for.
+   */
+  function load(andPlay: boolean): void {
     const t = current()
     if (!t) {
       report()
-      return Promise.resolve()
+      return
     }
     el.src = streamUrl(t.id)
-    // Reported twice on purpose: once now so the card shows the new track
-    // immediately, and again once play() settles so the play/pause glyph is
-    // right. Reporting only before would flash ▶ on every track change.
+    // Reported immediately so the card shows the new track without waiting on
+    // the network, then again when the play attempt settles so the play/pause
+    // glyph is right. Reporting only once would flash ▶ on every track change.
     report()
-    if (!andPlay) return Promise.resolve()
+    if (!andPlay) return
     // A rejected play() is usually the autoplay policy, not a broken track;
     // the gesture path calls activate() first.
-    return Promise.resolve(el.play()).catch(() => {}).then(() => report())
+    Promise.resolve(el.play()).then(() => report(), () => report())
   }
 
   function step(by: number, wrap: boolean): void {
@@ -77,7 +91,7 @@ export function createAudiusPlayer(
     if (next < 0) index = 0
     else if (next >= queue.length) index = wrap ? 0 : queue.length - 1
     else index = next
-    void load(true)
+    load(true)
   }
 
   el.addEventListener('ended', () => step(1, true))
@@ -111,20 +125,26 @@ export function createAudiusPlayer(
       context = next
     },
 
-    play() {
-      return load(true)
+    async play() {
+      load(true)
     },
 
     /**
-     * Browsers only unlock audio inside a user gesture. Calling play() on the
-     * silent, empty element during the click is enough to earn that unlock.
+     * Browsers only unlock audio inside a user gesture, and only if something
+     * actually plays. play() on a src-less element rejects, which earns no
+     * unlock — that is why the first press used to do nothing and the second
+     * one worked. Playing a silent clip gives the unlock something real to
+     * happen to; the track is loaded a moment later over the top of it.
      */
     async activate() {
+      if (el.src) return // already holding a real track
       try {
+        el.src = SILENT_WAV
         await el.play()
         el.pause()
       } catch {
-        // Nothing loaded yet is fine; the unlock still counts.
+        // Blocked anyway (or no media support). Playback still gets a second
+        // chance when the track loads.
       }
     },
 

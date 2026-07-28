@@ -10,6 +10,12 @@ export interface LoginOptions {
   /** Shown when a sign-in attempt failed, rather than failing silently. */
   error?: string | null
   onLogin(): void
+  /**
+   * Escape hatch to the free source. The card covers the whole page, including
+   * the source toggle, so without this a signed-out listener has no way to
+   * reach the version that needs no account.
+   */
+  onUseFree?(): void
 }
 
 export function buildLogin(root: HTMLElement, opts: LoginOptions): void {
@@ -36,9 +42,16 @@ export function buildLogin(root: HTMLElement, opts: LoginOptions): void {
         <a class="text-link" href="https://www.spotify.com/premium/"
            target="_blank" rel="noopener noreferrer">Spotify Premium account</a> is required.
       </p>
+      ${opts.onUseFree
+        ? `<p class="login-alt">
+             or <button id="use-free" class="link-button" type="button">listen free</button>
+             — no account needed
+           </p>`
+        : ''}
     </div>`
 
   root.querySelector('#login-btn')!.addEventListener('click', () => opts.onLogin())
+  root.querySelector('#use-free')?.addEventListener('click', () => opts.onUseFree?.())
 }
 
 export const NOT_REGISTERED_TITLE = 'This account does not have access yet'

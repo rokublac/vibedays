@@ -1023,3 +1023,11 @@ button { cursor: pointer; font-family: inherit; }
   color: var(--fg-muted);
   border-color: color-mix(in srgb, var(--fg) 55%, transparent);
 }
+
+/* The free-source escape hatch on the login card. Quiet: signing in is still
+   the primary action, this is the alternative. */
+.login-alt {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}

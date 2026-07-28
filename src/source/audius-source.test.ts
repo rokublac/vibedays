@@ -138,6 +138,22 @@ describe('createAudiusSource', () => {
     expect(onFatal).not.toHaveBeenCalledWith('auth', expect.anything())
   })
 
+  it('finishes starting even when playback never actually begins', async () => {
+    // Regression: start() used to await el.play(), which stays pending on a
+    // stalled load or blocked autoplay. main awaits start() inside its busy
+    // counter, so a pending play wedged every control on for the session.
+    const el = fakeAudio()
+    el.play = vi.fn(() => new Promise<void>(() => {})) // never settles
+    const { source } = make({ audio: el })
+    const sel = await source.resolve(CONDITIONS)
+    await expect(
+      Promise.race([
+        source.start(sel!).then(() => 'started'),
+        new Promise((r) => setTimeout(() => r('hung'), 50)),
+      ]),
+    ).resolves.toBe('started')
+  })
+
   it('teardown pauses and releases', async () => {
     const { source, el } = make()
     const sel = await source.resolve(CONDITIONS)

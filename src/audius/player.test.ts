@@ -181,3 +181,23 @@ describe('createAudiusPlayer', () => {
     await expect(player.play()).resolves.toBeUndefined()
   })
 })
+
+describe('activate', () => {
+  it('plays a silent clip, so the gesture actually unlocks audio', async () => {
+    // play() on a src-less element rejects and earns no unlock, which made the
+    // first press of play do nothing and the second one work.
+    const { el, player } = make()
+    await player.activate()
+    expect(el.src).toContain('data:audio/wav')
+    expect(el.play).toHaveBeenCalled()
+  })
+
+  it('leaves a loaded track alone', async () => {
+    const { el, player } = make()
+    player.setQueue(QUEUE)
+    await player.play()
+    const loaded = el.src
+    await player.activate()
+    expect(el.src).toBe(loaded)
+  })
+})

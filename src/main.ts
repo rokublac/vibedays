@@ -19,7 +19,10 @@ import { buildLogin, buildPremiumNotice, buildAccessNotice } from './ui/login'
 import { fetchProfile, ProfileError, type SpotifyProfile } from './spotify/profile-api'
 import { handleRedirect, isLoggedIn, beginLogin, getAccessToken, logout } from './spotify/auth'
 import { createSpotifySource } from './source/spotify-source'
-import type { MusicSource, Selection } from './source/types'
+import { createAudiusSource } from './source/audius-source'
+import type { MusicSource, Selection, SourceCallbacks, SourceId } from './source/types'
+import { loadSource, saveSource } from './config/source'
+import { buildSourceToggle } from './ui/source'
 import { fadeVolume } from './spotify/fade'
 import { loadVolume, saveVolume, effective, type VolumeState } from './config/volume'
 import { canSetVolume } from './ui/audio-capability'
@@ -112,30 +115,40 @@ async function boot() {
   // applyVolume only reads it at call time.
   let volumeUI: ReturnType<typeof buildVolume> | null = null
 
-  // Where the music comes from. A `let`, not a const: the free-source toggle
-  // reassigns this in a later phase.
-  let source: MusicSource = createSpotifySource({
-    getToken: getAccessToken,
-    genre: () => genre,
-    initialVolume: effective(volume),
-    onQuery: (query, count) => debug('search rung', { query, count }),
-    callbacks: {
-      onState: (track, paused) => playerUI.update(track, paused),
-      onFatal: (kind, msg) => {
-        console.error(`player ${kind} error:`, msg)
-        issue = `player ${kind}: ${msg || 'no message'}`
-        updateDiagnostics()
-        started = false
-        // A free plan is not a bad token. Clearing it would send the user back
-        // to the login screen, where signing in again changes nothing.
-        if (kind === 'account') { showPremiumRequired(); return }
-        logout()
-        profile = null
-        account.update(null)
-        showLogin()
-      },
+  const callbacks: SourceCallbacks = {
+    onState: (track, paused) => playerUI.update(track, paused),
+    onFatal: (kind, msg) => {
+      console.error(`player ${kind} error:`, msg)
+      issue = `player ${kind}: ${msg || 'no message'}`
+      updateDiagnostics()
+      started = false
+      // The free source has no session to invalidate; a network failure there
+      // must not throw the login card at someone who never signed in.
+      if (kind === 'network') return
+      // A free plan is not a bad token. Clearing it would send the user back
+      // to the login screen, where signing in again changes nothing.
+      if (kind === 'account') { showPremiumRequired(); return }
+      logout()
+      profile = null
+      account.update(null)
+      showLogin()
     },
-  })
+  }
+
+  function buildSource(id: SourceId): MusicSource {
+    if (id === 'audius') return createAudiusSource({ genre: () => genre, callbacks })
+    return createSpotifySource({
+      getToken: getAccessToken,
+      genre: () => genre,
+      initialVolume: effective(volume),
+      onQuery: (query, count) => debug('search rung', { query, count }),
+      callbacks,
+    })
+  }
+
+  // Where the music comes from. A `let`: the toggle reassigns it.
+  let sourceId: SourceId = loadSource()
+  let source: MusicSource = buildSource(sourceId)
 
   /** The selection currently playing, so playConditions knows a start landed. */
   let currentSelection: Selection | null = null
@@ -156,6 +169,8 @@ async function boot() {
       located: base.located,
       error: loginError,
       onLogin: () => startLogin(),
+      // The card covers the source toggle, so it has to offer the way out.
+      onUseFree: () => void switchSource('audius'),
     })
   }
 
@@ -199,7 +214,7 @@ async function boot() {
       }
       await startSelection(sel)
       if (currentSelection?.id === sel.id) playingKey = key
-      playerUI.setAlternatives(source.alternatives(c))
+      playerUI.setAlternatives(source.alternatives(c), alternativesKind())
       updateDiagnostics()
     } finally {
       setBusy(-1)
@@ -214,6 +229,65 @@ async function boot() {
     busyCount = Math.max(0, busyCount + delta)
     playerUI.setBusy(busyCount > 0)
     genrePicker.setBusy(busyCount > 0)
+    sourceUI.setBusy(busyCount > 0)
+  }
+
+  /** Spotify offers other playlists; the free source pages for a fresh batch. */
+  const alternativesKind = () => (source.id === 'audius' ? 'batch' : 'playlist')
+
+  /**
+   * Swaps catalogue without restarting the app: weather, location, palette,
+   * genre and volume all survive. The fade is the same machinery a playlist
+   * switch uses, so a switch landing mid-crossfade supersedes it cleanly.
+   */
+  async function switchSource(id: SourceId): Promise<void> {
+    if (id === source.id) return
+    setBusy(1)
+    const generation = ++fadeGeneration
+    const isCurrent = () => generation === fadeGeneration
+    try {
+      const ramp = (f: number) => {
+        fadeFraction = f
+        return source.setVolume(f * effective(volume))
+      }
+      if (started) await fadeVolume(ramp, 1, 0, { isCurrent })
+      await source.teardown()
+
+      const wasPlaying = started
+      sourceId = id
+      saveSource(id)
+      source = buildSource(id)
+      sourceUI.update(id)
+
+      // A switch is not a restart, but the new source has played nothing yet:
+      // leaving `started` true would make the next start fade out of silence.
+      started = false
+      playingKey = null
+      currentSelection = null
+      startingId = null
+      fadeFraction = 1
+      await source.setVolume(effective(volume))
+      playerUI.setAlternatives(0, alternativesKind())
+
+      if (id === 'audius') {
+        // Whatever the Spotify session was complaining about is no longer in
+        // the way — the free source does not need one.
+        overlay.hidden = true
+        issue = null
+      } else if (!isLoggedIn()) {
+        // Choosing Spotify is the moment signing in becomes necessary.
+        showLogin()
+        return
+      }
+
+      if (wasPlaying) await playConditions(base)
+    } catch (e) {
+      console.error('could not switch source', e)
+      issue = `source switch: ${e instanceof Error ? e.message : String(e)}`
+      updateDiagnostics()
+    } finally {
+      setBusy(-1)
+    }
   }
 
   /** Swap to another selection for the conditions already playing. */
@@ -223,7 +297,7 @@ async function boot() {
       const sel = await source.reroll(base)
       debug('reroll', sel)
       if (sel) await startSelection(sel)
-      playerUI.setAlternatives(source.alternatives(base))
+      playerUI.setAlternatives(source.alternatives(base), alternativesKind())
     } catch (e) {
       console.error('could not switch playlist', e)
     } finally {
@@ -373,6 +447,11 @@ async function boot() {
     render()
   }
 
+  const sourceUI = buildSourceToggle(document.getElementById('source-slot')!, {
+    onSelect: (id) => void switchSource(id),
+  })
+  sourceUI.update(sourceId)
+
   const genrePicker = buildGenrePicker(document.getElementById('genre-slot')!, {
     onSelect: (next) => {
       if (next.id === genre.id) return
@@ -482,7 +561,11 @@ async function boot() {
   render()
   hideBoot()
 
-  if (!isLoggedIn()) {
+  if (sourceId === 'audius') {
+    // The free source needs no account, so none of the session checks below
+    // apply. Signing in stays available from the toggle.
+    render()
+  } else if (!isLoggedIn()) {
     showLogin()
   } else {
     // Nothing starts until we know the session is actually usable. Booting the

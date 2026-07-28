@@ -1,6 +1,8 @@
 import type { TrackInfo } from '../spotify/player'
 import { fadeSwap, type SwapOptions } from './fade-swap'
 
+export type AlternativesKind = 'playlist' | 'batch'
+
 export const IDLE_PROMPT = 'Press play to start'
 export const BUSY_PROMPT = 'Finding a playlist…'
 export const SWITCHING_STATUS = 'Finding a playlist…'
@@ -19,7 +21,7 @@ export function buildPlayer(
   swap: SwapOptions = {},
 ): {
   update(track: TrackInfo | null, paused: boolean): void
-  setAlternatives(count: number): void
+  setAlternatives(count: number, of?: AlternativesKind): void
   setBusy(busy: boolean): void
 } {
   // The transport can't nest inside the <a> (invalid, and the clicks would
@@ -86,15 +88,28 @@ export function buildPlayer(
   /** The last track actually rendered, so the context row can be restored. */
   let lastTrack: TrackInfo | null = null
   let alternatives = 0
+  /** 'playlist' counts alternatives; 'batch' just offers another page. */
+  let kind: AlternativesKind = 'playlist'
 
   /**
    * Hidden entirely while a switch is running: a greyed-out button next to
    * "Finding a playlist…" is visual noise saying the same thing twice. It stays
    * disabled as well, so it cannot be activated in the frame before it hides.
+   *
+   * The copy is source-dependent. Spotify walks a pool of playlists, so the
+   * count is meaningful; the free source owns a flat pool of tracks and pages
+   * for a fresh batch, where "3 other playlists" would be a lie.
    */
   function syncReroll() {
-    const others = Math.max(0, alternatives - 1)
     reroll.hidden = busy
+    if (kind === 'batch') {
+      reroll.disabled = busy || alternatives === 0
+      reroll.title = alternatives
+        ? 'Load a different batch for these conditions'
+        : 'Nothing found for these conditions'
+      return
+    }
+    const others = Math.max(0, alternatives - 1)
     reroll.disabled = busy || others === 0
     reroll.title = others
       ? `Switch to one of ${others} other playlist${others === 1 ? '' : 's'} for these conditions`
@@ -177,8 +192,9 @@ export function buildPlayer(
       }
     },
 
-    setAlternatives(count: number) {
+    setAlternatives(count: number, of: AlternativesKind = 'playlist') {
       alternatives = count
+      kind = of
       syncReroll()
     },
   }
