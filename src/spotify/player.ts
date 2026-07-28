@@ -1,4 +1,4 @@
-import { VOLUME } from './fade'
+import { DEFAULT_VOLUME } from '../config/volume'
 
 interface WebPlaybackImage {
   url: string
@@ -137,6 +137,7 @@ declare global {
 export function initPlayer(
   getToken: () => Promise<string | null>,
   callbacks: PlayerCallbacks,
+  initialVolume: number = DEFAULT_VOLUME,
 ): Promise<PlayerHandle> {
   return new Promise((resolve, reject) => {
     window.onSpotifyWebPlaybackSDKReady = () => {
@@ -145,7 +146,7 @@ export function initPlayer(
         getOAuthToken: (cb) => {
           getToken().then((t) => cb(t ?? ''))
         },
-        volume: VOLUME,
+        volume: initialVolume,
       })
 
       let settled = false

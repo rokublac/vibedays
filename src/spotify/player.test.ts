@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { trackInfo, pickArtwork, trackUrl, contextInfo, contextUrl } from './player'
+import { trackInfo, pickArtwork, trackUrl, contextInfo, contextUrl, initPlayer } from './player'
+import { DEFAULT_VOLUME } from '../config/volume'
 
 const track = (over: Record<string, unknown> = {}) => ({
   id: 'abc123',
@@ -117,5 +118,56 @@ describe('contextInfo', () => {
       uri: null,
       metadata: { context_description: 'Recently played' },
     }))).toEqual({ label: 'Recently played', url: null })
+  })
+})
+
+describe('initPlayer', () => {
+  /** Minimal stand-in for the SDK's player object. */
+  function fakeSdk() {
+    const constructed: Array<{ volume?: number }> = []
+    const listeners = new Map<string, (p: unknown) => void>()
+    const player = {
+      addListener: (e: string, c: (p: unknown) => void) => void listeners.set(e, c),
+      connect: async () => true,
+      activateElement: async () => {},
+      togglePlay: async () => {},
+      nextTrack: async () => {},
+      previousTrack: async () => {},
+      setVolume: async () => {},
+    }
+    return {
+      constructed,
+      listeners,
+      Player: function (opts: { volume?: number }) {
+        constructed.push(opts)
+        return player
+      } as unknown as NonNullable<Window['Spotify']>['Player'],
+    }
+  }
+
+  /** Drives the SDK's ready handshake, which initPlayer waits on. */
+  async function boot(initialVolume?: number) {
+    const sdk = fakeSdk()
+    window.Spotify = { Player: sdk.Player }
+    const promise =
+      initialVolume === undefined
+        ? initPlayer(async () => 'token', { onState: () => {}, onFatal: () => {} })
+        : initPlayer(async () => 'token', { onState: () => {}, onFatal: () => {} }, initialVolume)
+    window.onSpotifyWebPlaybackSDKReady!()
+    sdk.listeners.get('ready')!({ device_id: 'dev1' })
+    await promise
+    return sdk
+  }
+
+  it('starts the SDK at the level it was given', async () => {
+    // Constructor rather than a setVolume afterwards, so the first note is
+    // already at the listener's level instead of being corrected mid-note.
+    const sdk = await boot(0.2)
+    expect(sdk.constructed[0].volume).toBe(0.2)
+  })
+
+  it('falls back to the default when none is given', async () => {
+    const sdk = await boot()
+    expect(sdk.constructed[0].volume).toBe(DEFAULT_VOLUME)
   })
 })

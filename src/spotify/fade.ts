@@ -5,9 +5,6 @@
  * a single output stream, so the outgoing and incoming tracks cannot overlap.
  */
 
-/** Playback volume when not mid-fade. Matches the SDK's initial volume. */
-export const VOLUME = 0.6
-
 export const FADE_MS = 700
 export const STEP_MS = 40
 
