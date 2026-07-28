@@ -2,7 +2,7 @@
 
 Music that fits your day.
 
-![vibedays playing late night ambient, with the current phase, weather and daylight hours shown](docs/screenshot.jpg)
+![vibedays at golden sunrise on a cold winter morning, playing a lofi track chosen for the hour, with the volume slider and the current weather and daylight hours shown](docs/screenshot.jpg)
 
 A static web player that reads the sun and the weather where you are, then finds
 music to match. When the day changes, so does the music.
