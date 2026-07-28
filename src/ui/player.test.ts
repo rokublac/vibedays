@@ -401,4 +401,23 @@ describe('buildPlayer', () => {
     player.update(null, true)
     expect(root.querySelector<HTMLDivElement>('.now-bar')!.classList.contains('is-empty')).toBe(true)
   })
+
+  it('offers a volume slot below the transport, outside the fading region', () => {
+    const root = document.createElement('div')
+    buildPlayer(root, cb(), NOW)
+    const slot = root.querySelector('#volume-slot')!
+    expect(slot).not.toBeNull()
+    // Inside the bar so it shares the frame, but outside .now-bar-main so a
+    // track swap fading the card cannot take the volume row with it.
+    expect(slot.parentElement).toBe(root.querySelector('.now-bar'))
+    expect(root.querySelector('.now-bar-main')!.contains(slot)).toBe(false)
+  })
+
+  it('keeps the transport inside the main row', () => {
+    const root = document.createElement('div')
+    buildPlayer(root, cb(), NOW)
+    const main = root.querySelector('.now-bar-main')!
+    expect(main.querySelector('.transport-row')).not.toBeNull()
+    expect(main.querySelector('#now-playing')).not.toBeNull()
+  })
 })

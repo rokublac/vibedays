@@ -36,20 +36,25 @@ export function buildPlayer(
               title="Try a different playlist for these conditions">Try another</button>
     </div>
     <div class="now-bar is-empty">
-      <span class="track-empty">${IDLE_PROMPT}</span>
-      <a id="now-playing" class="track-link" target="_blank" rel="noopener noreferrer" hidden>
-        <img class="track-art" alt="" width="80" height="80" />
-        <span class="track-meta">
-          <span class="track-name"></span>
-          <span class="track-artist"></span>
-        </span>
-        <span class="track-open" aria-hidden="true">↗</span>
-      </a>
-      <div class="transport-row">
-        <button id="pl-prev" class="transport" type="button" aria-label="Previous">⏮</button>
-        <button id="pl-toggle" class="transport transport-main" type="button" aria-label="Play/Pause">▶</button>
-        <button id="pl-next" class="transport" type="button" aria-label="Next">⏭</button>
+      <div class="now-bar-main">
+        <span class="track-empty">${IDLE_PROMPT}</span>
+        <a id="now-playing" class="track-link" target="_blank" rel="noopener noreferrer" hidden>
+          <img class="track-art" alt="" width="80" height="80" />
+          <span class="track-meta">
+            <span class="track-name"></span>
+            <span class="track-artist"></span>
+          </span>
+          <span class="track-open" aria-hidden="true">↗</span>
+        </a>
+        <div class="transport-row">
+          <button id="pl-prev" class="transport" type="button" aria-label="Previous">⏮</button>
+          <button id="pl-toggle" class="transport transport-main" type="button" aria-label="Play/Pause">▶</button>
+          <button id="pl-next" class="transport" type="button" aria-label="Next">⏭</button>
+        </div>
       </div>
+      <!-- Filled by main only where the platform actually honours setVolume;
+           left empty on iOS, where the row would move but the sound would not. -->
+      <div id="volume-slot"></div>
     </div>`
 
   const bar = root.querySelector<HTMLDivElement>('.now-bar')!
