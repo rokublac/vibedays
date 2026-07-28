@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { fadeCurve, fadeVolume, VOLUME } from './fade'
+import { fadeCurve, fadeVolume } from './fade'
 
 const noSleep = () => Promise.resolve()
 
@@ -45,7 +45,7 @@ describe('fadeCurve', () => {
 describe('fadeVolume', () => {
   it('applies every step and ends on the target', async () => {
     const applied: number[] = []
-    const done = await fadeVolume((v) => applied.push(v), VOLUME, 0, {
+    const done = await fadeVolume((v) => applied.push(v), 1, 0, {
       durationMs: 200,
       stepMs: 50,
       sleep: noSleep,
@@ -57,7 +57,7 @@ describe('fadeVolume', () => {
 
   it('waits between steps', async () => {
     const sleep = vi.fn(noSleep)
-    await fadeVolume(() => {}, 0, VOLUME, { durationMs: 120, stepMs: 40, sleep })
+    await fadeVolume(() => {}, 0, 1, { durationMs: 120, stepMs: 40, sleep })
     expect(sleep).toHaveBeenCalledTimes(3)
     expect(sleep).toHaveBeenCalledWith(40)
   })
@@ -70,7 +70,7 @@ describe('fadeVolume', () => {
         applied.push(v)
         if (applied.length === 2) live = false
       },
-      VOLUME,
+      1,
       0,
       { durationMs: 400, stepMs: 40, sleep: noSleep, isCurrent: () => live },
     )
@@ -81,7 +81,7 @@ describe('fadeVolume', () => {
 
   it('does not apply anything if it is already stale', async () => {
     const apply = vi.fn()
-    const done = await fadeVolume(apply, VOLUME, 0, { sleep: noSleep, isCurrent: () => false })
+    const done = await fadeVolume(apply, 1, 0, { sleep: noSleep, isCurrent: () => false })
     expect(done).toBe(false)
     expect(apply).not.toHaveBeenCalled()
   })

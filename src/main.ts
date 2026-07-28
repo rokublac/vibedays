@@ -21,7 +21,10 @@ import { handleRedirect, isLoggedIn, beginLogin, getAccessToken, logout } from '
 import { searchPlaylists } from './spotify/search-api'
 import { createAutoPlaylists } from './spotify/auto-playlist'
 import { initPlayer, type PlayerHandle } from './spotify/player'
-import { fadeVolume, VOLUME } from './spotify/fade'
+import { fadeVolume } from './spotify/fade'
+import { loadVolume, saveVolume, effective, type VolumeState } from './config/volume'
+import { canSetVolume } from './ui/audio-capability'
+import { buildVolume } from './ui/volume'
 import { playPlaylist, fetchTrackCount, randomStart, setShuffle } from './spotify/playback-api'
 import { SPOTIFY_CLIENT_ID } from './config/spotify'
 import { debug } from './debug'
@@ -182,7 +185,7 @@ async function boot() {
             account.update(null)
             showLogin()
           },
-        })
+        }, effective(volume))
       } catch (e) {
         console.error('Spotify player failed to load', e)
         // Allow a later attempt (e.g. after switching to a Premium account)
@@ -272,6 +275,33 @@ async function boot() {
   // longer current and drops out rather than fighting the newer one.
   let fadeGeneration = 0
 
+  let volume: VolumeState = loadVolume()
+
+  // Declared here but assigned further down, after buildPlayer has rendered
+  // #volume-slot. applyVolume only reads it at call time.
+  let volumeUI: ReturnType<typeof buildVolume> | null = null
+
+  /**
+   * How far through a fade the player is, 0..1. The volume actually sent to
+   * the SDK is this times the listener's level, so a drag mid-crossfade takes
+   * effect at once instead of being overwritten by the next ramp step.
+   */
+  let fadeFraction = 1
+
+  /** Pushes the current fraction × level at the SDK. */
+  function pushVolume(): Promise<void> {
+    return player?.setVolume(fadeFraction * effective(volume)) ?? Promise.resolve()
+  }
+
+  function applyVolume(next: VolumeState): void {
+    volume = next
+    saveVolume(next)
+    volumeUI?.update(next)
+    // Before the player exists there is nothing to push to; the stored level is
+    // picked up by the SDK constructor when it initialises.
+    void pushVolume().catch(() => {})
+  }
+
   async function startPlaylist(playlistId: string) {
     if (startingPlaylistId === playlistId) return // already starting this one (guards rapid ticks)
     startingPlaylistId = playlistId
@@ -285,12 +315,19 @@ async function boot() {
       if (!token || !player) { showLogin(); return }
       const p = player
 
+      // Ramps a fraction rather than an absolute volume: the listener's level
+      // is a separate multiplier, so a drag during the fade is not clobbered.
+      const ramp = (f: number) => {
+        fadeFraction = f
+        return p.setVolume(f * effective(volume))
+      }
+
       // Fade out only if something is already audible — otherwise the first
       // press would sit through a silent ramp before anything happened.
-      if (started) await fadeVolume((v) => p.setVolume(v), VOLUME, 0, { isCurrent })
+      if (started) await fadeVolume(ramp, 1, 0, { isCurrent })
       if (!isCurrent()) return
 
-      await p.setVolume(0)
+      await ramp(0)
 
       // Start somewhere inside the playlist rather than always on track one,
       // then hand the rest of the queue to Spotify's own shuffle.
@@ -303,13 +340,16 @@ async function boot() {
       started = true
       currentPlaylistId = playlistId
 
-      if (isCurrent()) await fadeVolume((v) => p.setVolume(v), 0, VOLUME, { isCurrent })
+      if (isCurrent()) await fadeVolume(ramp, 0, 1, { isCurrent })
     } catch (e) {
       console.error('could not start playlist', e)
       issue = `playback: ${e instanceof Error ? e.message : String(e)}`
       updateDiagnostics()
       // Never leave the player silent because a switch failed mid-fade.
-      if (isCurrent()) await player?.setVolume(VOLUME).catch(() => {})
+      if (isCurrent()) {
+        fadeFraction = 1
+        await pushVolume().catch(() => {})
+      }
     } finally {
       startingPlaylistId = null
     }
@@ -327,6 +367,16 @@ async function boot() {
     onPrev: () => player?.previous(),
     onReroll: () => void rerollPlaylist(),
   })
+
+  if (canSetVolume()) {
+    volumeUI = buildVolume(document.getElementById('volume-slot')!, {
+      // Dragging to zero is muting: leaving the two as separate states lets the
+      // icon and the sound disagree.
+      onChange: (level) => applyVolume({ level, muted: level === 0 }),
+      onToggleMute: () => applyVolume({ ...volume, muted: !volume.muted }),
+    })
+    volumeUI.update(volume)
+  }
 
   const controls = buildControls(document.getElementById('controls')!, {
     onRetryLocation: () => void retryLocation(),
