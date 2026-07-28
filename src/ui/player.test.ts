@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { buildPlayer, IDLE_PROMPT, BUSY_PROMPT, SWITCHING_STATUS } from './player'
 import type { TrackInfo } from '../types'
 
-const cb = () => ({ onToggle: vi.fn(), onNext: vi.fn(), onPrev: vi.fn(), onReroll: vi.fn() })
+const cb = () => ({ onToggle: vi.fn(), onNext: vi.fn(), onPrev: vi.fn(), })
 // Run the fade swap synchronously so assertions see the settled DOM.
 const NOW = { schedule: (fn: () => void) => fn() }
 
@@ -166,14 +166,6 @@ describe('buildPlayer', () => {
     expect(root.querySelector<HTMLDivElement>('.context-row')!.hidden).toBe(true)
   })
 
-  it('offers a way to switch playlist without waiting for the vibe to change', () => {
-    const root = document.createElement('div')
-    const callbacks = cb()
-    const player = buildPlayer(root, callbacks, NOW)
-    player.update(TRACK, false)
-    root.querySelector<HTMLButtonElement>('#reroll')!.click()
-    expect(callbacks.onReroll).toHaveBeenCalledTimes(1)
-  })
 
   it('says it is working while a search is in flight', () => {
     const root = document.createElement('div')
@@ -234,68 +226,9 @@ describe('buildPlayer', () => {
     expect(root.querySelector<HTMLSpanElement>('.track-empty')!.textContent).toBe(BUSY_PROMPT)
   })
 
-  it('hides the switch button while a switch is running', () => {
-    const root = document.createElement('div')
-    const player = buildPlayer(root, cb(), NOW)
-    player.update(TRACK, false)
-    player.setAlternatives(6)
-    const btn = root.querySelector<HTMLButtonElement>('#reroll')!
-    expect(btn.hidden).toBe(false)
 
-    player.setBusy(true)
-    // Greyed out next to "Finding a playlist…" was the same message twice.
-    expect(btn.hidden).toBe(true)
-    expect(btn.disabled).toBe(true)
 
-    player.setBusy(false)
-    expect(btn.hidden).toBe(false)
-    expect(btn.disabled).toBe(false)
-  })
 
-  it('offers another batch whenever the pool has anything in it', () => {
-    const root = document.createElement('div')
-    const player = buildPlayer(root, cb(), NOW)
-    player.update(TRACK, false)
-    const btn = root.querySelector<HTMLButtonElement>('#reroll')!
-
-    player.setAlternatives(30)
-    expect(btn.hidden).toBe(false)
-    expect(btn.disabled).toBe(false)
-    expect(btn.title).toContain('different batch')
-  })
-
-  it('disables the switch button when nothing was found at all', () => {
-    // The pool is a flat list of tracks, so one track is still a pool worth
-    // paging past — only an empty one leaves nothing to do.
-    const root = document.createElement('div')
-    const player = buildPlayer(root, cb(), NOW)
-    player.update(TRACK, false)
-    const btn = root.querySelector<HTMLButtonElement>('#reroll')!
-
-    player.setAlternatives(0)
-    expect(btn.disabled).toBe(true)
-    expect(btn.title).toContain('Nothing found')
-
-    player.setAlternatives(1)
-    expect(btn.disabled).toBe(false)
-  })
-
-  it('re-enables when a later condition has a bigger pool', () => {
-    const root = document.createElement('div')
-    const player = buildPlayer(root, cb(), NOW)
-    player.update(TRACK, false)
-    const btn = root.querySelector<HTMLButtonElement>('#reroll')!
-    player.setAlternatives(1)
-    player.setAlternatives(5)
-    expect(btn.disabled).toBe(false)
-  })
-
-  it('hides the switch button along with the source row when nothing plays', () => {
-    const root = document.createElement('div')
-    const player = buildPlayer(root, cb(), NOW)
-    player.update(null, true)
-    expect(root.querySelector<HTMLButtonElement>('#reroll')!.closest('[hidden]')).not.toBeNull()
-  })
 
   it('keeps the source label but drops the link when there is no url', () => {
     const root = document.createElement('div')

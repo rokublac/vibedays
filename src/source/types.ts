@@ -28,10 +28,6 @@ export interface MusicSource {
 
   /** Conditions → something playable. Pinned per condition signature. */
   resolve(c: Conditions): Promise<Selection | null>
-  /** A different selection for the same conditions ("Try another"). */
-  reroll(c: Conditions): Promise<Selection | null>
-  /** Alternatives for these conditions, including the current one. */
-  alternatives(c: Conditions): number
 
   /** Called on the user's play gesture, to unlock audio output. */
   activate(): Promise<void>

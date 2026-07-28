@@ -9,6 +9,13 @@ import { streamUrl } from './search-api'
  */
 export const MAX_CONSECUTIVE_ERRORS = 5
 
+/**
+ * How close to the end of the queue to start asking for more. Requested early
+ * rather than on the last track, so the next page has arrived before anyone
+ * reaches it and skipping never stalls waiting on the network.
+ */
+export const PREFETCH_WITHIN = 5
+
 /** An empty WAV. Exists only to give the autoplay unlock something to play. */
 export const SILENT_WAV =
   'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA='
@@ -16,10 +23,17 @@ export const SILENT_WAV =
 export interface AudiusPlayerCallbacks {
   onState(track: TrackInfo | null, paused: boolean): void
   onError(message: string): void
+  /**
+   * The queue is running low. Answer with appendQueue, or ignore it and the
+   * queue simply loops when it runs out.
+   */
+  onRunningLow?(): void
 }
 
 export interface AudiusPlayerHandle {
   setQueue(tracks: AudiusTrack[]): void
+  /** Extend the queue in place, without disturbing what is playing. */
+  appendQueue(tracks: AudiusTrack[]): void
   /** The "Playing from" line; the source supplies the mood label. */
   setContext(context: PlaybackContext | null): void
   /** Requests playback. Resolves once asked, not once audible — see load(). */
@@ -89,9 +103,12 @@ export function createAudiusPlayer(
     if (!queue.length) return
     const next = index + by
     if (next < 0) index = 0
+    // Looping is the fallback, not the plan: onRunningLow should have topped
+    // the queue up well before anyone arrives here.
     else if (next >= queue.length) index = wrap ? 0 : queue.length - 1
     else index = next
     load(true)
+    if (queue.length - index <= PREFETCH_WITHIN) cb.onRunningLow?.()
   }
 
   el.addEventListener('ended', () => step(1, true))
@@ -119,6 +136,12 @@ export function createAudiusPlayer(
       queue = tracks
       index = 0
       consecutiveErrors = 0
+    },
+
+    appendQueue(tracks: AudiusTrack[]) {
+      // Appended, never replaced: the listener is somewhere in the current
+      // queue and replacing it would jump them elsewhere mid-track.
+      queue = queue.concat(tracks)
     },
 
     setContext(next: PlaybackContext | null) {

@@ -23,11 +23,11 @@ const track = (id: string): AudiusTrack => ({
   artist: 'Someone',
 })
 
-function pagedSearch(pageCount = 3) {
+function pagedSearch(pageCount = 3, perPage = 4) {
   return vi.fn(async (p: { offset?: number }) => {
     const page = (p.offset ?? 0) / 100
     if (page >= pageCount) return []
-    return Array.from({ length: 4 }, (_, i) => track(`p${page}t${i}`))
+    return Array.from({ length: perPage }, (_, i) => track(`p${page}t${i}`))
   })
 }
 
@@ -48,10 +48,10 @@ function fakeAudio() {
   return el
 }
 
-function make(over: Record<string, unknown> = {}, pageCount = 3) {
+function make(over: Record<string, unknown> = {}, pageCount = 3, perPage = 4) {
   // Resolved once and passed exactly once, so the returned spy is always the
   // one the source actually called.
-  const search = (over.search as ReturnType<typeof pagedSearch>) ?? pagedSearch(pageCount)
+  const search = (over.search as ReturnType<typeof pagedSearch>) ?? pagedSearch(pageCount, perPage)
   const el = fakeAudio()
   const onFatal = vi.fn()
   const onState = vi.fn()
@@ -86,19 +86,42 @@ describe('createAudiusSource', () => {
     expect(await source.resolve(CONDITIONS)).toBeNull()
   })
 
-  it('reports the pool size as alternatives', async () => {
-    const { source } = make()
-    await source.resolve(CONDITIONS)
-    expect(source.alternatives(CONDITIONS)).toBe(4)
+  it('pages deeper as the queue runs low, so skipping never runs out', async () => {
+    // Replaces the old "Try another" button: with individual tracks rather
+    // than playlists, a batch boundary is invisible, so paging happens on its
+    // own instead of asking the listener to press something.
+    const { source, search, el } = make()
+    const sel = await source.resolve(CONDITIONS)
+    await source.start(sel!)
+    const before = search.mock.calls.length
+
+    // Four tracks in the page and PREFETCH_WITHIN is 5, so the first skip
+    // already counts as running low.
+    source.next()
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(search.mock.calls.length).toBe(before + 1)
+    expect(search.mock.calls.at(-1)![0]).toMatchObject({ offset: 100 })
+    expect(el.src).toContain('/stream')
   })
 
-  it('rerolls to a fresh batch with a distinct id', async () => {
-    // The id must differ or main's startingId guard would suppress the restart.
-    const { source } = make()
-    const first = await source.resolve(CONDITIONS)
-    const second = await source.reroll(CONDITIONS)
-    expect(second!.id).toBe('Lo-Fi|night|Cool|100')
-    expect(second!.id).not.toBe(first!.id)
+  it('appends rather than replacing, so the current track keeps playing', async () => {
+    const { source, el } = make()
+    const sel = await source.resolve(CONDITIONS)
+    await source.start(sel!)
+    const playingNow = el.src
+    await new Promise((r) => setTimeout(r, 0))
+    expect(el.src).toBe(playingNow)
+  })
+
+  it('survives running out of pages without stopping the music', async () => {
+    // One page only: the top-up finds nothing and the queue simply loops.
+    const { source, el } = make({}, 1)
+    const sel = await source.resolve(CONDITIONS)
+    await source.start(sel!)
+    for (let i = 0; i < 6; i++) source.next()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(el.src).toContain('/stream')
   })
 
   it('starts playback from the pool', async () => {
@@ -110,14 +133,16 @@ describe('createAudiusSource', () => {
   })
 
   it('skips without touching the network', async () => {
-    // Owning the queue is what makes hammering next free.
-    const { source, search } = make()
+    // Owning the queue is what makes hammering next free. Paging only happens
+    // near the end of a page, so a real 100-track page costs one request per
+    // hundred skips rather than one per skip.
+    const { source, search } = make({}, 3, 50)
     const sel = await source.resolve(CONDITIONS)
     await source.start(sel!)
     const callsAfterStart = search.mock.calls.length
-    source.next()
-    source.next()
+    for (let i = 0; i < 10; i++) source.next()
     source.previous()
+    await new Promise((r) => setTimeout(r, 0))
     expect(search.mock.calls.length).toBe(callsAfterStart)
   })
 

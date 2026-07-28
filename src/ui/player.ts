@@ -9,8 +9,6 @@ export interface PlayerControls {
   onToggle(): void
   onNext(): void
   onPrev(): void
-  /** Swap to a different playlist for the same conditions. */
-  onReroll(): void
 }
 
 export function buildPlayer(
@@ -19,7 +17,6 @@ export function buildPlayer(
   swap: SwapOptions = {},
 ): {
   update(track: TrackInfo | null, paused: boolean): void
-  setAlternatives(count: number): void
   /** Replaces the idle prompt with an explanation; null restores it. */
   setNotice(text: string | null): void
   setBusy(busy: boolean): void
@@ -31,11 +28,8 @@ export function buildPlayer(
     <div class="context-row" hidden>
       <span class="context-status" role="status" hidden>${SWITCHING_STATUS}</span>
       <a id="playing-from" class="context-line" target="_blank" rel="noopener noreferrer">
-        <span class="context-label">Playing from</span>
         <span class="context-name"></span>
       </a>
-      <button id="reroll" class="context-reroll" type="button"
-              title="Try a different playlist for these conditions">Try another</button>
     </div>
     <div class="now-bar is-empty">
       <div class="now-bar-main">
@@ -61,7 +55,6 @@ export function buildPlayer(
 
   const bar = root.querySelector<HTMLDivElement>('.now-bar')!
   const contextRow = root.querySelector<HTMLDivElement>('.context-row')!
-  const reroll = root.querySelector<HTMLButtonElement>('#reroll')!
   const context = root.querySelector<HTMLAnchorElement>('#playing-from')!
   const contextName = root.querySelector<HTMLSpanElement>('.context-name')!
   const status = root.querySelector<HTMLSpanElement>('.context-status')!
@@ -75,7 +68,6 @@ export function buildPlayer(
   root.querySelector('#pl-prev')!.addEventListener('click', () => cb.onPrev())
   toggle.addEventListener('click', () => cb.onToggle())
   root.querySelector('#pl-next')!.addEventListener('click', () => cb.onNext())
-  root.querySelector('#reroll')!.addEventListener('click', () => cb.onReroll())
 
   // What the bar is currently showing. Track and context are tracked apart so
   // the SDK reporting a track before its context does not cause two fades.
@@ -87,25 +79,8 @@ export function buildPlayer(
   let held: { track: TrackInfo | null; paused: boolean } | null = null
   /** The last track actually rendered, so the context row can be restored. */
   let lastTrack: TrackInfo | null = null
-  let alternatives = 0
   /** Why there is nothing playing, when it is not simply that nobody pressed play. */
   let notice: string | null = null
-
-  /**
-   * Hidden entirely while a switch is running: a greyed-out button next to
-   * "Finding a playlist…" is visual noise saying the same thing twice. It stays
-   * disabled as well, so it cannot be activated in the frame before it hides.
-   *
-   * The source owns a flat pool of tracks and pages for a fresh batch, so the
-   * count is not "other playlists" — it is how much there is to page through.
-   */
-  function syncReroll() {
-    reroll.hidden = busy
-    reroll.disabled = busy || alternatives === 0
-    reroll.title = alternatives
-      ? 'Load a different batch for these conditions'
-      : 'Nothing found for these conditions'
-  }
 
   const trackId = (t: TrackInfo | null) => (t ? `${t.url ?? t.name}|${t.artists}` : null)
   const contextId = (t: TrackInfo | null) => t?.context?.label ?? null
@@ -162,7 +137,6 @@ export function buildPlayer(
       // The busy message always wins: a stale notice sitting there while a
       // search is visibly running would contradict it.
       empty.textContent = next ? BUSY_PROMPT : (notice ?? IDLE_PROMPT)
-      syncReroll()
 
       // With a track already on screen the empty prompt is hidden, so the
       // status takes the place of the playlist name: that is the thing being
@@ -189,14 +163,9 @@ export function buildPlayer(
       notice = text
       if (!busy) empty.textContent = text ?? IDLE_PROMPT
     },
-
-    setAlternatives(count: number) {
-      alternatives = count
-      syncReroll()
-    },
   }
 
-  /** The "Playing from" row, separable so a late context can be written alone. */
+  /** The vibe line, separable so a late context can be written alone. */
   function renderContext(track: TrackInfo | null) {
     // The SDK does not always describe the context, so this line comes and goes.
     if (!track?.context) {

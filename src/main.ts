@@ -157,7 +157,6 @@ async function boot() {
       playerUI.setNotice(null)
       await startSelection(sel)
       if (currentSelection?.id === sel.id) playingKey = key
-      playerUI.setAlternatives(source.alternatives(c))
       updateDiagnostics()
     } finally {
       setBusy(-1)
@@ -172,21 +171,6 @@ async function boot() {
     busyCount = Math.max(0, busyCount + delta)
     playerUI.setBusy(busyCount > 0)
     genrePicker.setBusy(busyCount > 0)
-  }
-
-  /** Swap to another selection for the conditions already playing. */
-  async function rerollPlaylist(): Promise<void> {
-    setBusy(1)
-    try {
-      const sel = await source.reroll(base)
-      debug('reroll', sel)
-      if (sel) await startSelection(sel)
-      playerUI.setAlternatives(source.alternatives(base))
-    } catch (e) {
-      console.error('could not switch playlist', e)
-    } finally {
-      setBusy(-1)
-    }
   }
 
   function render() {
@@ -279,7 +263,6 @@ async function boot() {
     },
     onNext: () => source.next(),
     onPrev: () => source.previous(),
-    onReroll: () => void rerollPlaylist(),
   })
 
   if (canSetVolume()) {

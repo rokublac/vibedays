@@ -26,18 +26,39 @@ export function createAudiusSource(deps: AudiusSourceDeps): MusicSource {
     fetchFn: deps.fetchFn,
   })
 
+  /**
+   * Pages deeper for the same vibe so skipping never runs out and never loops
+   * back to tracks already heard. Failures are swallowed: the queue still has
+   * what it had, so the listener notices nothing.
+   */
+  async function extend(): Promise<void> {
+    if (extending || !playing) return
+    extending = true
+    try {
+      const more = await pool.advance(playing)
+      if (more.length) player.appendQueue(more)
+    } catch {
+      // Out of pages or offline; the existing queue loops rather than stopping.
+    } finally {
+      extending = false
+    }
+  }
+
   const player: AudiusPlayerHandle = createAudiusPlayer(
     {
       onState: (track, paused) => deps.callbacks.onState(track, paused),
-      // Never 'auth': this source has no token, so a failure here must not
-      // send a signed-out listener to the login card.
       onError: (message) => deps.callbacks.onFatal('network', message),
+      onRunningLow: () => void extend(),
     },
     deps.audio,
   )
 
   /** Tracks for the selection main last asked us to start. */
   let staged: AudiusTrack[] = []
+  /** What is playing, so the queue can be topped up for the same vibe. */
+  let playing: Conditions | null = null
+  /** One page request at a time; onRunningLow fires on every skip near the end. */
+  let extending = false
 
   /**
    * The offset is part of the id so a reroll produces a distinct selection —
@@ -76,15 +97,8 @@ export function createAudiusSource(deps: AudiusSourceDeps): MusicSource {
     id: 'audius',
 
     resolve(c: Conditions) {
+      playing = c
       return attempt(c, () => pool.resolve(c))
-    },
-
-    reroll(c: Conditions) {
-      return attempt(c, () => pool.advance(c))
-    },
-
-    alternatives(c: Conditions) {
-      return pool.size(c)
     },
 
     activate() {
@@ -107,6 +121,7 @@ export function createAudiusSource(deps: AudiusSourceDeps): MusicSource {
 
     async teardown() {
       staged = []
+      playing = null
       await player.teardown()
     },
   }

@@ -365,34 +365,8 @@ button { cursor: pointer; font-family: inherit; }
 
 /* Quiet by default so it doesn't compete with the playlist name; it is a
    secondary escape hatch, not a primary control. */
-.context-reroll {
-  flex-shrink: 0;
-  padding: 0.2rem 0.6rem;
-  border-radius: var(--pill);
-  background: transparent;
-  border: 1px solid color-mix(in srgb, var(--fg) 55%, transparent);
-  color: var(--fg-muted);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-}
-.context-reroll:hover {
-  background: color-mix(in srgb, var(--fg) 10%, transparent);
-  color: var(--fg);
-  border-color: var(--fg);
-}
-.context-reroll:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
-.context-reroll[hidden] { display: none; }
 /* Disabled controls are exempt from the contrast minimum, so dimming is safe
    here in a way it is not for ordinary text. */
-.context-reroll:disabled { opacity: 0.4; cursor: default; }
-.context-reroll:disabled:hover {
-  background: transparent;
-  color: var(--fg-muted);
-  border-color: color-mix(in srgb, var(--fg) 55%, transparent);
-}
 
 /* "Playing from <playlist>" — sits above the bar and links to the source.
    Kept outside .now-bar so it can be its own anchor without nesting links. */
