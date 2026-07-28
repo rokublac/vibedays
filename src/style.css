@@ -1011,3 +1011,15 @@ button { cursor: pointer; font-family: inherit; }
   .context-status { animation: none; }
   .rainbow { animation: none; }
 }
+
+/* ---- Source toggle ---- */
+
+/* Inherits .genre-chip; only the caret-less shape differs, since this is a
+   straight toggle rather than a menu. */
+.source-chip { cursor: pointer; }
+.source-chip:disabled { opacity: 0.5; cursor: default; }
+.source-chip:disabled:hover {
+  background: none;
+  color: var(--fg-muted);
+  border-color: color-mix(in srgb, var(--fg) 55%, transparent);
+}

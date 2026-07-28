@@ -32,6 +32,7 @@ export function buildControls(
     <div class="controls-head">
       <span class="readout-conditions"></span>
       <div class="head-actions">
+        <div id="source-slot"></div>
         <div id="genre-slot"></div>
         <div id="account-slot"></div>
       </div>
