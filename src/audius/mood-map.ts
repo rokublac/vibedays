@@ -33,18 +33,55 @@ const GENRE_MAP: Record<string, AudiusQuery> = {
 const NIGHT_QUERY: Partial<Record<SunPhase, AudiusQuery>> = {
   // 22:00–midnight: winding down, not yet asleep.
   'late-night': { genre: 'Ambient', query: 'sleep ambient', label: 'Sleep ambient' },
-  // The small hours: as deep as it goes.
-  'deep-night': { genre: 'Ambient', query: 'zen meditation', label: 'Zen meditation' },
+  // The small hours: as deep as it goes. Not "zen" — measured, that word pulls
+  // toward spa and yoga ("Spa Meditation", "Ambient Music for Yoga"), which is
+  // daytime wellness music. "sleep music" returns actual sleep aid.
+  'deep-night': { genre: 'Ambient', query: 'sleep music', label: 'Sleep music' },
 }
 
 const SLEEPS_AT_NIGHT = ['lofi', 'ambient']
 
-const BY_WEATHER: Partial<Record<WeatherKind, string>> = {
+/**
+ * Search words that actually exist in track titles. Measured across the
+ * catalogue, and most weather words do not: "storm" and "fog" return nothing,
+ * "snow" five, "clouds" three. Only rain is written about often enough to
+ * search for, so only rain gets a word.
+ */
+const WEATHER_TEXT: Partial<Record<WeatherKind, string>> = {
+  rain: 'rain',
+}
+
+/**
+ * Weather with no usable search word still has to be felt, so it takes over
+ * the mood instead. This is the old behaviour, kept only where text cannot do
+ * the job.
+ */
+const WEATHER_MOOD: Partial<Record<WeatherKind, string>> = {
   storm: 'Brooding',
   fog: 'Brooding',
-  rain: 'Melancholy',
   snow: 'Tender',
   cloudy: 'Sentimental',
+}
+
+/**
+ * Phase words with a healthy pool. Only two survive: "morning" (34) and
+ * "night" (25). "sunrise", "midday" and "dusk" return nothing, and combining
+ * two words collapses the pool ("rain morning" returns one track), so a
+ * weather word always wins over a phase word.
+ */
+const PHASE_TEXT: Partial<Record<SunPhase, string>> = {
+  morning: 'morning',
+  evening: 'night',
+}
+
+/**
+ * Moods that do not survive being paired with a weather word: Upbeat + rain
+ * is two tracks, Sophisticated + rain is four. Rain is not upbeat anyway, so
+ * these soften rather than fight the weather.
+ */
+const DAMPENED: Record<string, string> = {
+  Upbeat: 'Sentimental',
+  Sophisticated: 'Sentimental',
 }
 
 const BY_PHASE: Record<SunPhase, string> = {
@@ -70,17 +107,35 @@ const NIGHT: SunPhase[] = ['late-night', 'deep-night']
  * changes the feel of a day more than the clock does. A clear sky says nothing
  * the hour has not already said, so it is absent from BY_WEATHER.
  */
+/** The word searched for alongside the genre, or none. Weather beats hour. */
+export function textFor(c: Conditions): string | undefined {
+  const weather = c.weather ? WEATHER_TEXT[c.weather] : undefined
+  return weather ?? PHASE_TEXT[c.phase]
+}
+
 export function moodFor(c: Conditions): string {
   if (NIGHT.includes(c.phase)) return BY_PHASE[c.phase]
-  const byWeather = c.weather ? BY_WEATHER[c.weather] : undefined
-  return byWeather ?? BY_PHASE[c.phase]
+
+  // With a weather word carrying the conditions, the hour keeps the mood — so
+  // a wet morning and a wet evening are both rainy but not identical. Without
+  // one, the weather has to take the mood or it would not be felt at all.
+  const byPhase = BY_PHASE[c.phase]
+  if (c.weather && WEATHER_TEXT[c.weather]) return DAMPENED[byPhase] ?? byPhase
+  return (c.weather ? WEATHER_MOOD[c.weather] : undefined) ?? byPhase
 }
 
 export function audiusQuery(c: Conditions, genre: Genre): AudiusQuery {
   const mood = moodFor(c)
   const night = SLEEPS_AT_NIGHT.includes(genre.id) ? NIGHT_QUERY[c.phase] : undefined
   if (night) return { ...night, mood }
+
   const base = GENRE_MAP[genre.id] ?? GENRE_MAP.lofi
-  // "Cool lofi", "Melancholy jazz" — the mood plus what you picked.
-  return { ...base, mood, label: `${mood} ${genre.label.toLowerCase()}` }
+  const text = textFor(c)
+  // Synthwave already searches by text and cannot take a second word — two
+  // words collapse the pool.
+  if (base.query || !text) {
+    return { ...base, mood, label: `${mood} ${genre.label.toLowerCase()}` }
+  }
+  // "Easygoing rain lofi", "Cool night lofi" — mood, conditions, genre.
+  return { ...base, mood, query: text, label: `${mood} ${text} ${genre.label.toLowerCase()}` }
 }

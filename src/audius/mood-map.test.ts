@@ -31,13 +31,27 @@ describe('moodFor', () => {
     expect(moodFor(at('morning'))).toBe('Easygoing')
   })
 
-  it('lets weather override the hour', () => {
-    // Rain changes the feel of a day more than the clock does.
-    expect(moodFor(at('midday', 'rain'))).toBe('Melancholy')
+  it('lets weather take the mood when it has no search word of its own', () => {
+    // Measured: "storm", "fog" and "clouds" barely exist in track titles, so
+    // the only way to feel them is through the mood.
     expect(moodFor(at('midday', 'storm'))).toBe('Brooding')
     expect(moodFor(at('midday', 'fog'))).toBe('Brooding')
     expect(moodFor(at('midday', 'snow'))).toBe('Tender')
     expect(moodFor(at('midday', 'cloudy'))).toBe('Sentimental')
+  })
+
+  it('keeps the hour when the weather has its own word', () => {
+    // Rain is searchable, so it rides in the text and the hour keeps the mood.
+    // A wet morning and a wet evening should not be the same music.
+    expect(moodFor(at('morning', 'rain'))).toBe('Easygoing')
+    expect(moodFor(at('evening', 'rain'))).toBe('Cool')
+    expect(moodFor(at('sunset-golden', 'rain'))).toBe('Romantic')
+  })
+
+  it('softens moods that do not survive the weather word', () => {
+    // Upbeat + rain is two tracks, and rain is not upbeat anyway.
+    expect(moodFor(at('midday', 'rain'))).toBe('Sentimental')
+    expect(moodFor(at('blue-hour', 'rain'))).toBe('Sentimental')
   })
 
   it('lets night beat weather', () => {
@@ -72,12 +86,15 @@ describe('audiusQuery', () => {
   })
 
   it('carries the mood through', () => {
-    expect(audiusQuery(at('midday', 'rain'), genreById('lofi')).mood).toBe('Melancholy')
+    expect(audiusQuery(at('midday', 'rain'), genreById('lofi')).mood).toBe('Sentimental')
   })
 
   it('labels the vibe for the "Playing from" line', () => {
-    expect(audiusQuery(at('evening'), genreById('lofi')).label).toBe('Cool lofi')
-    expect(audiusQuery(at('midday', 'rain'), genreById('jazz')).label).toBe('Melancholy jazz')
+    // Evening carries the "night" word, which is one of only two phase words
+    // with a usable pool.
+    expect(audiusQuery(at('evening'), genreById('lofi')).label).toBe('Cool night lofi')
+    expect(audiusQuery(at('afternoon'), genreById('lofi')).label).toBe('Easygoing lofi')
+    expect(audiusQuery(at('midday', 'rain'), genreById('jazz')).label).toBe('Sentimental rain jazz')
   })
 })
 
@@ -95,16 +112,16 @@ describe('the small hours', () => {
   it('goes deeper still in the small hours', () => {
     const q = audiusQuery(at('deep-night'), genreById('lofi'))
     expect(q.genre).toBe('Ambient')
-    expect(q.query).toBe('zen meditation')
+    expect(q.query).toBe('sleep music')
   })
 
   it('applies to ambient too, which should also get sleepier', () => {
-    expect(audiusQuery(at('deep-night'), genreById('ambient')).query).toBe('zen meditation')
+    expect(audiusQuery(at('deep-night'), genreById('ambient')).query).toBe('sleep music')
   })
 
   it('says what it is actually playing, not the genre you picked', () => {
     // "Peaceful lofi" over a zen meditation track would be a lie.
-    expect(audiusQuery(at('deep-night'), genreById('lofi')).label).toBe('Zen meditation')
+    expect(audiusQuery(at('deep-night'), genreById('lofi')).label).toBe('Sleep music')
     expect(audiusQuery(at('late-night'), genreById('lofi')).label).toBe('Sleep ambient')
   })
 
@@ -116,6 +133,6 @@ describe('the small hours', () => {
 
   it('ignores the weather at night, like the mood does', () => {
     // Sleep outranks the sky; a storm at 3am is still sleep music.
-    expect(audiusQuery(at('deep-night', 'storm'), genreById('lofi')).query).toBe('zen meditation')
+    expect(audiusQuery(at('deep-night', 'storm'), genreById('lofi')).query).toBe('sleep music')
   })
 })
